@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://*.workers.dev http://127.0.0.1:8787; base-uri 'none'; form-action 'none'">
+  <meta name="theme-color" content="#f1f7f3">
+  <title>家庭血压本</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <main>
+    <header class="heading">
+      <div>
+        <p class="eyebrow">家人共享</p>
+        <h1>家庭血压本</h1>
+      </div>
+      <button id="logout" class="secondary" type="button" hidden>退出</button>
+    </header>
+
+    <section id="welcome" class="card">
+      <p id="welcome-message" role="status">正在打开血压本…</p>
+      <button id="login" type="button" hidden>登录</button>
+    </section>
+
+    <div id="book" hidden>
+      <nav aria-label="血压本功能">
+        <button id="new-tab" class="secondary" type="button" aria-pressed="true">记血压</button>
+        <button id="history-tab" class="secondary" type="button" aria-pressed="false">看历史</button>
+      </nav>
+
+      <section id="new-panel" class="card" aria-labelledby="new-heading">
+        <h2 id="new-heading">记血压</h2>
+        <form id="record-form">
+          <fieldset id="record-fields">
+            <div class="readings">
+              <label for="systolic">高压 <small>mmHg</small></label>
+              <label for="diastolic">低压 <small>mmHg</small></label>
+              <input id="systolic" name="systolic" type="number" inputmode="numeric" min="1" max="999" required placeholder="高压">
+              <input id="diastolic" name="diastolic" type="number" inputmode="numeric" min="1" max="999" required placeholder="低压">
+            </div>
+            <label for="pulse">脉搏 <small>选填</small></label>
+            <input id="pulse" name="pulse" type="number" inputmode="numeric" min="1" max="999" placeholder="次/分钟">
+            <label for="measured-at">测量时间 <small>北京时间</small></label>
+            <input id="measured-at" name="measuredAt" type="datetime-local" min="2000-01-01T00:00" max="2099-12-31T23:59" required>
+          </fieldset>
+          <button id="save" type="submit">保存记录</button>
+          <p id="save-status" class="status" role="status"></p>
+        </form>
+      </section>
+
+      <section id="history-panel" class="card" aria-labelledby="history-heading" hidden>
+        <h2 id="history-heading">历史记录</h2>
+        <div class="history-controls">
+          <label for="history-month">月份</label>
+          <input id="history-month" type="month" min="2000-01" max="2099-12" placeholder="YYYY-MM" required>
+          <button id="refresh" class="secondary" type="button">刷新</button>
+        </div>
+        <p id="history-status" class="status" role="status"></p>
+        <ul id="history-list" aria-label="测量记录"></ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

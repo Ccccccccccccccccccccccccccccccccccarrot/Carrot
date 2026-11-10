@@ -1,0 +1,42 @@
+:root {
+  color-scheme: light;
+  font: 18px/1.45 system-ui, sans-serif;
+  color: #19382e;
+  background: #f1f7f3;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+main { max-width: 36rem; margin: auto; padding: 1.2rem 1rem 2rem; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
+.eyebrow { font-size: .85rem; color: #456858; margin: 0 0 .2rem; }
+h1, h2 { line-height: 1.2; margin: 0 0 .85rem; }
+h1 { font-size: clamp(1.5rem, 6vw, 2.1rem); margin-bottom: 0; }
+h2 { font-size: 1.35rem; }
+.card { padding: 1rem; border-radius: .85rem; border: 1px solid #d3e3d9; background: #fff; }
+#welcome-message { margin-top: 0; }
+nav { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-bottom: .7rem; }
+button, input { font: inherit; min-height: 2.8rem; border-radius: .55rem; }
+button { padding: .55rem .85rem; border: 1px solid transparent; cursor: pointer; font-weight: 650; color: #fff; background: #155c43; }
+button.secondary { color: #155c43; background: #fff; border-color: #a6c1b2; }
+button[aria-pressed="true"] { color: #fff; background: #155c43; border-color: #155c43; }
+button:disabled { cursor: wait; opacity: .65; }
+button:focus-visible, input:focus-visible { outline: 3px solid #4c876f; outline-offset: 2px; }
+label { display: block; font-weight: 650; margin: .7rem 0 .3rem; }
+small { font-size: .76rem; font-weight: 500; color: #51645a; }
+input { width: 100%; min-width: 0; color: #19382e; background: #fff; border: 1px solid #a6b7ad; padding: .45rem .55rem; }
+fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+.readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: .65rem; }
+.readings input { font-size: 1.25rem; }
+#save, #login { width: 100%; margin-top: 1rem; }
+.status { margin: .65rem 0 0; font-size: .9rem; color: #3d6150; }
+.status:empty { display: none; }
+.status.error { color: #9a3021; }
+.history-controls { display: grid; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto; gap: .45rem; }
+.history-controls label { margin: 0; }
+ul { list-style: none; margin: .65rem 0 0; padding: 0; }
+li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
+li time { display: block; color: #51645a; font-size: .85rem; }
+li strong { margin-right: .5rem; font-size: 1.2rem; }
+li span { display: inline-block; font-size: .85rem; color: #51645a; }

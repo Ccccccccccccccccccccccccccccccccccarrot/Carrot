@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "carrot-blood-pressure",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-11-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": false },
+  "vars": {
+    "PAGES_URL": "https://cccccccccccccccccccccccccccccccccarrot.github.io/Carrot/"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "AUTH", "class_name": "FamilyAuth" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FamilyAuth"] }]
+}

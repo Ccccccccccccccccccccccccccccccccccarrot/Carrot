@@ -1,0 +1,17 @@
+{
+  "name": "carrot-blood-pressure",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "preview": "node scripts/preview.mjs",
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "credentials": "node scripts/credentials.mjs",
+    "app-key": "node scripts/app-key.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "5.20261110.0-beta",
+    "wrangler": "4.160.0"
+  }
+}
