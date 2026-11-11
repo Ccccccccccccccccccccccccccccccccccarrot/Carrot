@@ -77,6 +77,16 @@ function isActive(env, account) {
   return account && getVerifier(env, account.user) === account.verifier;
 }
 
+async function authenticate(request, env, auth, user, password) {
+  const source = await hash(request.headers.get("CF-Connecting-IP") ?? "local");
+  if (!await auth.allowAttempt(source)) return { status: 429 };
+  const username = typeof user === "string" ? user.trim().toLowerCase() : "";
+  const verifier = usernamePattern.test(username) ? getVerifier(env, username) : null;
+  if (!verifier || typeof password !== "string" || !passwordPattern.test(password) ||
+      !await verifyPassword(env.PASSWORD_PEPPER, username, password, verifier)) return { status: 401 };
+  return { status: 200, username, verifier };
+}
+
 async function login(request, url, env, pages, auth) {
   const isPost = request.method === "POST";
   if (isPost && request.headers.get("Origin") !== url.origin) return new Response("Forbidden", { status: 403 });
@@ -91,13 +101,10 @@ async function login(request, url, env, pages, auth) {
   }
   if (!isPost) return loginPage(pages.origin, challenge, state);
 
-  const source = await hash(request.headers.get("CF-Connecting-IP") ?? "local");
-  if (!await auth.allowAttempt(source)) return loginPage(pages.origin, challenge, state, "尝试次数过多，请稍后再试。", 429);
-  const username = (form.get("username") ?? "").trim().toLowerCase();
-  const password = form.get("password") ?? "";
-  const verifier = usernamePattern.test(username) ? getVerifier(env, username) : null;
-  if (!verifier || !passwordPattern.test(password) || !await verifyPassword(env.PASSWORD_PEPPER, username, password, verifier)) {
-    return loginPage(pages.origin, challenge, state, "账号或密码不正确。", 401);
+  const { status, username, verifier } = await authenticate(request, env, auth, form.get("username"), form.get("password"));
+  if (status !== 200) {
+    const message = status === 429 ? "尝试次数过多，请稍后再试。" : "账号或密码不正确。";
+    return loginPage(pages.origin, challenge, state, message, status);
   }
   const code = randomToken();
   await auth.issueCode(await hash(code), challenge, username, verifier);
@@ -125,7 +132,7 @@ export default {
       if (path === "/login" && (method === "GET" || method === "POST")) {
         return await login(request, url, env, pages, env.AUTH.getByName("family"));
       }
-      if (path !== "/auth/exchange" && path !== "/auth/logout" && path !== "/api/records") {
+      if (!["/auth/session", "/auth/exchange", "/auth/logout", "/api/records"].includes(path)) {
         return reply({ error: "not_found" }, 404);
       }
       if (origin && origin !== pages.origin) return reply({ error: "forbidden" }, 403);
@@ -137,6 +144,15 @@ export default {
         } });
       }
       const auth = env.AUTH.getByName("family");
+      if (path === "/auth/session" && method === "POST") {
+        if (origin !== pages.origin) return reply({ error: "forbidden" }, 403);
+        const data = await readJson(request);
+        const { status, username, verifier } = await authenticate(request, env, auth, data?.username, data?.password);
+        if (status !== 200) return reply({ error: status === 429 ? "rate_limited" : "invalid_credentials" }, status);
+        const session = randomToken();
+        const expiresAt = await auth.issueSession(await hash(session), username, verifier);
+        return reply({ session, username, expiresAt });
+      }
       if (path === "/auth/exchange" && method === "POST") {
         const data = await readJson(request);
         if (typeof data?.code !== "string" || typeof data?.verifier !== "string" ||
@@ -144,13 +160,17 @@ export default {
         const session = randomToken();
         const account = await auth.exchangeCode(await hash(data.code), await hash(data.verifier), await hash(session));
         if (!isActive(env, account)) return reply({ error: "invalid_code" }, 401);
-        return reply({ session });
+        return reply({ session, username: account.user, expiresAt: account.expiresAt });
       }
 
       const token = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
       if (!token) return reply({ error: "unauthorized" }, 401);
       const sessionHash = await hash(token);
-      if (!isActive(env, await auth.getSession(sessionHash))) return reply({ error: "unauthorized" }, 401);
+      const account = await auth.getSession(sessionHash);
+      if (!isActive(env, account)) return reply({ error: "unauthorized" }, 401);
+      if (path === "/auth/session" && method === "GET") {
+        return reply({ username: account.user, expiresAt: account.expiresAt });
+      }
       if (path === "/auth/logout" && method === "POST") {
         await auth.removeSession(sessionHash);
         return reply({ ok: true });

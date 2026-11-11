@@ -74,11 +74,32 @@ test("allowlist, CORS, one-time code binding, logout and unauthenticated request
 });
 
 test("login attempts are limited", async (t) => {
-  const { enter } = setup(t);
+  const { enter, api, passwords } = setup(t);
   for (let attempt = 0; attempt < 10; attempt += 1) {
     assert.equal((await enter("unknown", "wrong")).response.status, 401);
   }
   assert.equal((await enter("baba")).response.status, 429);
+  assert.equal((await api("/auth/session", { data: { username: "baba", password: passwords.baba } })).status, 429);
+});
+
+test("in-app login works only from the configured site and still honors revocation", async (t) => {
+  const { api, passwords, revoke } = setup(t);
+  const data = { username: "family", password: passwords.family };
+  assert.equal((await api("/auth/session", { origin: "", data })).status, 403);
+  assert.equal((await api("/auth/session", { origin: "https://outside.test", data })).status, 403);
+  assert.equal((await api("/auth/session", { data: { ...data, password: "wrong" } })).status, 401);
+  const response = await api("/auth/session", { data });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), pagesOrigin);
+  const { session: token, username, expiresAt } = await response.json();
+  assert.equal(username, data.username);
+  assert.ok(expiresAt > Date.now() && expiresAt <= Date.now() + 24 * 60 * 60 * 1000);
+  assert.deepEqual(await (await api("/auth/session", { token })).json(), { username, expiresAt });
+  assert.equal((await api("/api/records", { token })).status, 200);
+  await revoke(username);
+  assert.equal((await api("/auth/session", { token })).status, 401);
+  assert.equal((await api("/api/records", { token })).status, 401);
 });
 
 test("two family sessions see the same encrypted record in the Beijing month", async (t) => {
