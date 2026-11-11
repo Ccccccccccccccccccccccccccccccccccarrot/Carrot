@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "家庭血压本",
+  "short_name": "血压本",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#f1f7f3",
+  "background_color": "#f1f7f3",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

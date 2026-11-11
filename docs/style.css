@@ -33,6 +33,9 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .status { margin: .65rem 0 0; font-size: .9rem; color: #3d6150; }
 .status:empty { display: none; }
 .status.error { color: #9a3021; }
+#sync-status { margin: 0 0 .65rem; }
+.record-meta .record-state { color: #765319; }
+.record-meta .record-state.conflict, .record-meta .record-state.invalid { color: #9a3021; }
 .history-controls { display: grid; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto; gap: .45rem; }
 .history-controls label { margin: 0; }
 .calendar-field { position: relative; min-width: 0; }
@@ -88,4 +91,5 @@ li span { display: inline-block; font-size: .85rem; color: #51645a; }
 button.danger { color: #9a3021; border-color: #d6a9a2; }
 #edit-dialog { width: min(28rem, calc(100% - 1.5rem)); color: inherit; padding: 1rem; border: 1px solid #a6c1b2; border-radius: .85rem; }
 #edit-dialog::backdrop { background: rgb(25 56 46 / 40%); }
+#edit-heading:focus { outline: none; }
 .edit-actions { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; }

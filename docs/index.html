@@ -4,11 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://carrot-blood-pressure-api.pages.dev http://127.0.0.1:8787; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://carrot-blood-pressure-api.pages.dev http://127.0.0.1:8787; manifest-src 'self'; img-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#f1f7f3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>家庭血压本</title>
-  <link rel="stylesheet" href="./style.css?v=5">
-  <script type="module" src="./app.js?v=5"></script>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css?v=6">
+  <script type="module" src="./app.js?v=6"></script>
 </head>
 <body>
   <main>
@@ -22,7 +26,13 @@
 
     <section id="welcome" class="card">
       <p id="welcome-message" role="status">正在打开血压本…</p>
-      <button id="login" type="button" hidden>登录</button>
+      <form id="login-form" hidden>
+        <label for="username">账号</label>
+        <input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" required>
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" maxlength="128" required>
+        <button id="login" type="submit">登录</button>
+      </form>
     </section>
 
     <div id="book" hidden>
@@ -30,6 +40,7 @@
         <button id="new-tab" class="secondary" type="button" aria-pressed="true">记血压</button>
         <button id="history-tab" class="secondary" type="button" aria-pressed="false">看历史</button>
       </nav>
+      <p id="sync-status" class="status" role="status"></p>
 
       <section id="new-panel" class="card" aria-labelledby="new-heading">
         <h2 id="new-heading">记血压</h2>
@@ -80,7 +91,7 @@
     </div>
   </main>
   <dialog id="edit-dialog" aria-labelledby="edit-heading">
-    <h2 id="edit-heading">编辑记录</h2>
+    <h2 id="edit-heading" tabindex="-1" autofocus>编辑记录</h2>
     <p class="status">测量时间 <time id="edit-time"></time> <small>北京时间</small></p>
     <form id="edit-form">
       <fieldset id="edit-fields">

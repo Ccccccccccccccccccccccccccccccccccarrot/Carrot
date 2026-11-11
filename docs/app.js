@@ -1,4 +1,5 @@
 import { workerOrigin } from "./config.js";
+import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=6";
 
 const byId = (id) => document.getElementById(id);
 const form = byId("record-form");
@@ -17,7 +18,10 @@ const editDialog = byId("edit-dialog");
 const editForm = byId("edit-form");
 const editStatus = byId("edit-status");
 const editTime = byId("edit-time");
+const loginForm = byId("login-form");
+const syncStatus = byId("sync-status");
 const sessionKey = "carrot-bp-session";
+const appSessionKey = "carrot-bp-app-session";
 const loginKey = "carrot-bp-login";
 const draftKey = "carrot-bp-pending-record";
 const tabKey = "carrot-bp-tab";
@@ -29,8 +33,9 @@ const timeFormat = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
 });
 
-let session = sessionStorage.getItem(sessionKey);
-let pending = JSON.parse(sessionStorage.getItem(draftKey) ?? "null");
+let account = null;
+let syncTask = null;
+let syncAgain = false;
 let saving = false;
 let historyRequest = 0;
 let measuredAtEdited = false;
@@ -63,6 +68,15 @@ function randomToken() {
   return encode(crypto.getRandomValues(new Uint8Array(32)));
 }
 
+function newRecordId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function showWelcome(message, canLogin = true) {
   historyRequest += 1;
   if (editDialog?.open) editDialog.close();
@@ -71,15 +85,27 @@ function showWelcome(message, canLogin = true) {
   byId("logout").hidden = true;
   byId("welcome").hidden = false;
   byId("welcome-message").textContent = message;
-  byId("login").hidden = !canLogin;
+  if (loginForm) loginForm.hidden = !canLogin;
+  else byId("login").hidden = !canLogin;
 }
 
 function clearSession() {
-  session = null;
+  account = null;
+  try { localStorage.removeItem(appSessionKey); } catch {}
   sessionStorage.removeItem(sessionKey);
 }
 
-async function api(path, { method = "GET", data, token = session } = {}) {
+function acceptSession(value) {
+  if (!value || typeof value.session !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value.session) ||
+      typeof value.username !== "string" || !/^[a-z0-9_-]{1,32}$/.test(value.username) ||
+      !Number.isFinite(value.expiresAt) || value.expiresAt <= Date.now()) return false;
+  account = value;
+  try { localStorage.setItem(appSessionKey, JSON.stringify(value)); } catch {}
+  sessionStorage.removeItem(sessionKey);
+  return true;
+}
+
+async function api(path, { method = "GET", data, token = account?.session } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   if (data !== undefined) headers["Content-Type"] = "application/json";
@@ -112,17 +138,7 @@ function resetForm() {
   byId("measured-at").value = beijingInputTime();
 }
 
-function displayPending() {
-  if (personInput) personInput.value = pending.person ?? "";
-  byId("systolic").value = pending.systolic;
-  byId("diastolic").value = pending.diastolic;
-  byId("pulse").value = pending.pulse ?? "";
-  byId("measured-at").value = beijingInputTime(new Date(pending.measuredAt));
-  fields.disabled = true;
-  save.textContent = "重试保存";
-}
-
-function showBook() {
+async function showBook() {
   byId("welcome").hidden = true;
   byId("book").hidden = false;
   byId("logout").hidden = false;
@@ -132,11 +148,19 @@ function showBook() {
   if (dayInput) dayInput.value = day?.startsWith(`${monthInput.value}-`) ? day : "";
   updateCalendarLabels();
   resetForm();
-  if (pending) {
-    displayPending();
-    saveStatus.textContent = "有一条记录待确认，请重试保存。";
+  saveStatus.textContent = "";
+  historyNotice.textContent = "";
+  const draft = sessionStorage.getItem(draftKey);
+  if (draft) {
+    try {
+      await saveLocally("POST", null, JSON.parse(draft));
+      sessionStorage.removeItem(draftKey);
+    } catch {
+      saveStatus.textContent = "旧版的待保存记录暂时无法迁移，请刷新重试。";
+    }
   }
-  showTab(!pending && sessionStorage.getItem(tabKey) === "history");
+  showTab(sessionStorage.getItem(tabKey) === "history", false);
+  void resumeSync();
 }
 
 function requireLogin() {
@@ -144,34 +168,29 @@ function requireLogin() {
   showWelcome("登录已过期，请重新登录。");
 }
 
-function releaseDraft() {
-  pending = null;
-  sessionStorage.removeItem(draftKey);
-  fields.disabled = false;
-  save.textContent = "保存记录";
+function saveLocally(method, original, record) {
+  const target = record ?? original;
+  return enqueue({ user: account.username, month: beijingInputTime(new Date(target.measuredAt)).slice(0, 7),
+    id: target.id, method, original, record });
 }
 
 async function saveRecord(event) {
   event.preventDefault();
-  if (saving) return;
-  if (!pending) {
-    const measuredAt = measuredAtEdited ? new Date(`${byId("measured-at").value}+08:00`) : new Date();
-    if (!Number.isFinite(measuredAt.valueOf())) {
-      saveStatus.classList.add("error");
-      saveStatus.textContent = "请选择有效的测量时间。";
-      return;
-    }
-    byId("measured-at").value = beijingInputTime(measuredAt);
-    pending = {
-      id: crypto.randomUUID(),
-      systolic: byId("systolic").valueAsNumber,
-      diastolic: byId("diastolic").valueAsNumber,
-      pulse: byId("pulse").value ? byId("pulse").valueAsNumber : null,
-      measuredAt: measuredAt.toISOString(),
-      person: personInput?.value,
-    };
-    sessionStorage.setItem(draftKey, JSON.stringify(pending));
+  if (saving || changingHistory || !account) return;
+  const measuredAt = measuredAtEdited ? new Date(`${byId("measured-at").value}+08:00`) : new Date();
+  if (!Number.isFinite(measuredAt.valueOf())) {
+    saveStatus.classList.add("error");
+    saveStatus.textContent = "请选择有效的测量时间。";
+    return;
   }
+  const record = {
+    id: newRecordId(),
+    systolic: byId("systolic").valueAsNumber,
+    diastolic: byId("diastolic").valueAsNumber,
+    pulse: byId("pulse").value ? byId("pulse").valueAsNumber : null,
+    measuredAt: measuredAt.toISOString(),
+    person: personInput?.value,
+  };
 
   saving = true;
   save.disabled = true;
@@ -180,38 +199,26 @@ async function saveRecord(event) {
   saveStatus.classList.remove("error");
   saveStatus.textContent = "正在保存…";
   try {
-    const response = await api("/api/records", { method: "POST", data: pending });
-    if (response.status === 401) {
-      requireLogin();
-      return;
-    }
-    if (response.status === 400 || response.status === 409) {
-      releaseDraft();
-      saveStatus.classList.add("error");
-      saveStatus.textContent = "这次未能保存，请检查输入后重新提交。";
-      return;
-    }
-    if (!response.ok) throw new Error("Save not confirmed");
-    const savedDay = beijingInputTime(new Date(pending.measuredAt)).slice(0, 10);
+    await saveLocally("POST", null, record);
+    const savedDay = beijingInputTime(measuredAt).slice(0, 10);
     monthInput.value = savedDay.slice(0, 7);
     if (dayInput?.value) dayInput.value = savedDay;
     rememberHistoryDate();
-    releaseDraft();
     resetForm();
-    saveStatus.textContent = "已保存";
-    if (!byId("history-panel").hidden) await loadHistory();
+    saveStatus.textContent = "已保存到本机";
+    void resumeSync();
   } catch {
     saveStatus.classList.add("error");
-    saveStatus.textContent = "暂时无法确认保存，请重试。同一条记录只会保存一次。";
-    save.textContent = "重试保存";
+    saveStatus.textContent = "本机存储不可用，记录尚未保存，请重试。";
   } finally {
     saving = false;
     save.disabled = false;
+    fields.disabled = false;
     byId("logout").disabled = false;
   }
 }
 
-function renderRecord(record) {
+function renderRecord({ record, state }) {
   const item = document.createElement("li");
   const summary = document.createElement("div");
   const metadata = document.createElement("div");
@@ -222,6 +229,12 @@ function renderRecord(record) {
   timestamp.dateTime = record.measuredAt;
   timestamp.textContent = timeFormat.format(new Date(record.measuredAt));
   metadata.append(person, timestamp);
+  if (state) {
+    const badge = document.createElement("span");
+    badge.className = `record-state ${state}`;
+    badge.textContent = { pending: "待同步", deleting: "待同步删除", conflict: "同步冲突", invalid: "同步失败" }[state];
+    metadata.append(badge);
+  }
   const values = document.createElement("div");
   values.className = "record-values";
   const pressure = document.createElement("div");
@@ -239,9 +252,28 @@ function renderRecord(record) {
   }
   summary.append(metadata, values);
   item.append(summary);
-  if (editDialog) {
+  if (editDialog && state !== "deleting") {
     const actions = document.createElement("div");
     actions.className = "record-actions";
+    if (state === "conflict" || state === "invalid") {
+      const discard = document.createElement("button");
+      discard.type = "button";
+      discard.className = "secondary";
+      discard.textContent = "撤销本机更改";
+      discard.addEventListener("click", async () => {
+        if (!account || !window.confirm("撤销这条记录在本机尚未同步的更改？")) return;
+        try {
+          await discardChanges(account.username, record.id);
+          historyNotice.textContent = "已撤销本机更改";
+          void resumeSync();
+        } catch {
+          historyNotice.textContent = "暂时无法撤销，请重试。";
+        }
+      });
+      actions.append(discard);
+      item.append(actions);
+      return item;
+    }
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "secondary";
@@ -266,6 +298,10 @@ function renderRecord(record) {
 
 function openEdit(record) {
   if (saving || changingHistory) return;
+  if (!editDialog.showModal) {
+    historyNotice.textContent = "当前浏览器不支持编辑弹窗，请更新浏览器。";
+    return;
+  }
   editing = record;
   const input = editForm.elements;
   input.person.value = record.person ?? "";
@@ -285,12 +321,16 @@ function openEdit(record) {
   }
   editStatus.textContent = "";
   editStatus.classList.remove("error");
+  const heading = byId("edit-heading");
+  heading.tabIndex = -1;
+  heading.setAttribute("autofocus", "");
   editDialog.showModal();
+  heading.focus({ preventScroll: true });
 }
 
 function submitEdit(event) {
   event.preventDefault();
-  if (!editing || changingHistory) return;
+  if (!editing || changingHistory || !account) return;
   const input = editForm.elements;
   void changeHistory(editing, {
     id: editing.id,
@@ -303,6 +343,7 @@ function submitEdit(event) {
 }
 
 async function changeHistory(original, replacement) {
+  if (!account || saving || changingHistory) return;
   const status = replacement ? editStatus : historyNotice;
   const controls = ["logout", "new-tab", "history-tab", "history-month", "refresh",
     "history-day", "clear-day", "edit-fields", "edit-save", "edit-cancel"].map(byId).filter(Boolean);
@@ -312,32 +353,14 @@ async function changeHistory(original, replacement) {
   status.classList.remove("error");
   status.textContent = replacement ? "正在保存修改…" : "正在删除…";
   try {
-    const response = await api("/api/records", replacement
-      ? { method: "PATCH", data: { original, record: replacement } }
-      : { method: "DELETE", data: { original } });
-    if (response.status === 401) {
-      requireLogin();
-      return;
-    }
-    if (response.status === 409) {
-      if (editDialog.open) editDialog.close();
-      await loadHistory();
-      historyNotice.classList.add("error");
-      historyNotice.textContent = "这条记录已被更新或删除，请查看最新的历史。";
-      return;
-    }
-    if (response.status === 400 && replacement) {
-      status.classList.add("error");
-      status.textContent = "请检查输入后重新保存。";
-      return;
-    }
-    if (!response.ok) throw new Error("Change not confirmed");
+    await saveLocally(replacement ? "PATCH" : "DELETE", original, replacement);
     if (replacement) editDialog.close();
-    await loadHistory();
-    historyNotice.textContent = replacement ? "已保存修改" : "已删除";
+    historyNotice.classList.remove("error");
+    historyNotice.textContent = replacement ? "修改已保存到本机" : "删除已登记到本机";
+    void resumeSync();
   } catch {
     status.classList.add("error");
-    status.textContent = replacement ? "暂时无法确认修改，请重试。" : "暂时无法确认删除，请重试。";
+    status.textContent = "本机存储不可用，更改尚未保存，请重试。";
   } finally {
     changingHistory = false;
     controls.forEach((control) => { control.disabled = false; });
@@ -345,73 +368,150 @@ async function changeHistory(original, replacement) {
   }
 }
 
-async function loadHistory() {
+async function loadHistory(owner, remote = false) {
   const request = ++historyRequest;
-  updateCalendarLabels();
-  historyList.replaceChildren();
-  if (historyNotice) {
-    historyNotice.textContent = "";
-    historyNotice.classList.remove("error");
-  }
-  historyStatus.classList.remove("error");
   const month = monthInput.value;
-  if (!monthPattern.test(month)) {
-    historyStatus.textContent = "请选择有效月份。";
-    return;
-  }
   const day = dayInput?.value;
-  if (dayInput && (!dayInput.validity.valid || (day && !day.startsWith(`${month}-`)))) {
-    historyStatus.textContent = "请选择有效日期。";
-    return;
+  const current = () => owner === account && request === historyRequest &&
+    monthInput.value === month && dayInput?.value === day;
+  updateCalendarLabels();
+  const parsedDay = day && new Date(`${day}T00:00:00Z`);
+  const validMonth = monthPattern.test(month);
+  if (!validMonth || (day && (!dayInput.validity.valid || !day.startsWith(`${month}-`) ||
+      !Number.isFinite(parsedDay.valueOf()) || parsedDay.toISOString().slice(0, 10) !== day))) {
+    historyList.replaceChildren();
+    historyStatus.textContent = validMonth ? "请选择有效日期。" : "请选择有效月份。";
+    return false;
   }
   rememberHistoryDate();
-  historyStatus.textContent = "正在读取…";
-  try {
-    const query = new URLSearchParams(day ? { date: day } : { month });
-    const response = await api(`/api/records?${query}`);
-    if (request !== historyRequest) return;
+  if (remote) {
+    const response = await api(`/api/records?month=${month}`, { token: owner.session });
+    if (!current()) return false;
+    if (response.status === 401) {
+      requireLogin();
+      return false;
+    }
+    if (!response.ok) throw new Error("History unavailable");
+    const { records } = await response.json();
+    if (!current()) return false;
+    await cacheMonth(owner.username, month, records);
+  }
+  const { cache, changes } = await readMonth(owner.username, month);
+  if (!current()) return false;
+  const rows = new Map((cache?.records ?? []).map((record) => [record.id, { record }]));
+  for (const { id, record, original, reason } of changes) {
+    const previous = rows.get(id);
+    if (previous?.state === "conflict" || previous?.state === "invalid") continue;
+    rows.set(id, { record: record ?? previous?.record ?? original, state: reason ?? (record ? "pending" : "deleting") });
+  }
+  const visible = [...rows.values()].filter(({ record }) => !day || beijingInputTime(new Date(record.measuredAt)).startsWith(day))
+    .sort((a, b) => b.record.measuredAt.localeCompare(a.record.measuredAt));
+  historyList.replaceChildren(...visible.map(renderRecord));
+  historyStatus.textContent = visible.length ? `共 ${visible.length} 条`
+    : cache?.complete ? (day ? "这一天还没有记录。" : "这个月还没有记录。")
+      : "本机还没有这段历史，联网后会同步。";
+  return remote;
+}
+
+async function syncChanges(owner) {
+  const changes = await queuedChanges(owner.username);
+  const blocked = new Set();
+  for (const change of changes) {
+    if (owner !== account) return;
+    if (change.reason) blocked.add(change.id);
+    if (blocked.has(change.id)) continue;
+    const { method, original, record } = change;
+    const response = await api("/api/records", { method, token: owner.session,
+      data: method === "POST" ? record : { original, record } });
+    if (owner !== account) return;
     if (response.status === 401) {
       requireLogin();
       return;
     }
-    if (!response.ok) throw new Error("History unavailable");
-    const { records } = await response.json();
-    if (request !== historyRequest) return;
-    historyList.replaceChildren(...records.map(renderRecord));
-    historyStatus.textContent = records.length ? `共 ${records.length} 条`
-      : day ? "这一天还没有记录。" : "这个月还没有记录。";
-  } catch {
-    if (request !== historyRequest) return;
-    historyStatus.classList.add("error");
-    historyStatus.textContent = "暂时无法读取记录，请刷新重试。";
+    if (response.status === 400 || response.status === 409) {
+      blocked.add(change.id);
+      await finishChange(change, response.status === 409 ? "conflict" : "invalid");
+    } else {
+      if (!response.ok) throw new Error("Upload unavailable");
+      await finishChange(change);
+    }
   }
 }
 
-function showTab(history) {
+function setSyncStatus(message) {
+  if (syncStatus) syncStatus.textContent = message;
+}
+
+function resumeSync() {
+  if (!account) return;
+  if (syncTask) {
+    syncAgain = true;
+    return;
+  }
+  const owner = account;
+  syncTask = (async () => {
+    do {
+      syncAgain = false;
+      if (owner.expiresAt <= Date.now()) {
+        requireLogin();
+        return;
+      }
+      setSyncStatus(navigator.onLine ? "正在同步…" : "当前离线，可保存到本机。");
+      await loadHistory(owner);
+      if (owner !== account) return;
+      let updated = false;
+      if (navigator.onLine) {
+        try {
+          await syncChanges(owner);
+          if (owner !== account) return;
+          updated = await loadHistory(owner, true);
+        } catch {
+          if (owner !== account) return;
+          await loadHistory(owner);
+        }
+      }
+      if (owner !== account) return;
+      const changes = await queuedChanges(owner.username);
+      if (owner !== account) return;
+      const blocked = new Set(changes.filter((change) => change.reason).map((change) => change.id));
+      const remaining = new Set(changes.filter((change) => !blocked.has(change.id)).map((change) => change.id));
+      const messages = [];
+      if (remaining.size) messages.push(`${remaining.size} 条记录待同步，重新打开或联网后会重试。`);
+      if (blocked.size) messages.push(`${blocked.size} 条记录需要处理，请查看历史。`);
+      setSyncStatus(messages.join(" ") || (updated ? "已同步" : "暂未同步，当前显示本机记录。"));
+    } while (syncAgain && owner === account);
+  })().catch(() => {
+    if (owner === account) setSyncStatus("暂时无法访问本机存储，请刷新重试。");
+  }).finally(() => {
+    syncTask = null;
+    if (syncAgain && account) resumeSync();
+  });
+}
+
+function showTab(history, refresh = true) {
   sessionStorage.setItem(tabKey, history ? "history" : "new");
   byId("new-panel").hidden = history;
   byId("history-panel").hidden = !history;
   byId("new-tab").setAttribute("aria-pressed", String(!history));
   byId("history-tab").setAttribute("aria-pressed", String(history));
-  if (history) void loadHistory();
-  else if (!pending && !measuredAtEdited) byId("measured-at").value = beijingInputTime();
+  if (history && refresh) resumeSync();
+  else if (!history && !measuredAtEdited) byId("measured-at").value = beijingInputTime();
 }
 
 async function logout() {
-  const token = session;
+  const previous = account;
   clearSession();
-  releaseDraft();
   sessionStorage.removeItem(tabKey);
   sessionStorage.removeItem(monthKey);
   sessionStorage.removeItem(dayKey);
   resetForm();
   saveStatus.textContent = "";
   showWelcome("已退出。需要时可以重新登录。");
-  try {
-    await api("/auth/logout", { method: "POST", token });
-  } catch {
-    // The local session is already cleared and the server session expires on its own.
-  }
+  if (!previous) return;
+  await Promise.allSettled([
+    clearHistory(previous.username),
+    api("/auth/logout", { method: "POST", token: previous.session }),
+  ]);
 }
 
 async function initialize() {
@@ -434,25 +534,59 @@ async function initialize() {
     }
     try {
       const response = await api("/auth/exchange", { method: "POST", data: { code, verifier: login.verifier }, token: null });
-      if (!response.ok) throw new Error("Login failed");
-      ({ session } = await response.json());
-      sessionStorage.setItem(sessionKey, session);
+      if (!response.ok || !acceptSession(await response.json())) throw new Error("Login failed");
     } catch {
       showWelcome("未能完成登录，请重新试一次。");
       return;
     }
+  } else {
+    try { acceptSession(JSON.parse(localStorage.getItem(appSessionKey))); } catch {}
+    const legacy = sessionStorage.getItem(sessionKey);
+    if (!account && legacy) {
+      try {
+        const response = await api("/auth/session", { token: legacy });
+        if (response.ok) acceptSession({ ...await response.json(), session: legacy });
+      } catch {}
+    }
   }
-  if (session) showBook();
+  if (account) await showBook();
   else showWelcome("登录后就能记血压、看历史。");
 }
 
-byId("login").addEventListener("click", () => {
-  startLogin().catch(() => showWelcome("暂时无法打开登录页，请重试。"));
-});
+if (loginForm) {
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = byId("login");
+    if (button.disabled) return;
+    button.disabled = true;
+    const { username, password } = loginForm.elements;
+    const message = byId("welcome-message");
+    message.textContent = "正在登录…";
+    try {
+      const response = await api("/auth/session", { method: "POST", token: null,
+        data: { username: username.value.trim(), password: password.value } });
+      if (response.status === 401) message.textContent = "账号或密码不正确，请再试一次。";
+      else if (response.status === 429) message.textContent = "尝试次数过多，请稍后再试。";
+      else if (!response.ok || !acceptSession(await response.json())) throw new Error("Login failed");
+      else {
+        password.value = "";
+        await showBook();
+      }
+    } catch {
+      message.textContent = "暂时无法登录，请检查网络后重试。";
+    } finally {
+      button.disabled = false;
+    }
+  });
+} else {
+  byId("login").addEventListener("click", () => {
+    startLogin().catch(() => showWelcome("暂时无法打开登录页，请重试。"));
+  });
+}
 byId("logout").addEventListener("click", logout);
 byId("new-tab").addEventListener("click", () => showTab(false));
 byId("history-tab").addEventListener("click", () => showTab(true));
-byId("refresh").addEventListener("click", loadHistory);
+byId("refresh").addEventListener("click", resumeSync);
 for (const input of [monthInput, dayInput]) {
   if (input && input.type !== "text") {
     input.closest(".calendar-field")?.classList.add("calendar-enhanced");
@@ -461,16 +595,16 @@ for (const input of [monthInput, dayInput]) {
 }
 monthInput.addEventListener("change", () => {
   if (dayInput) dayInput.value = "";
-  void loadHistory();
+  resumeSync();
 });
 dayInput?.addEventListener("change", () => {
   if (dayInput.type === "text") dayInput.value = dayInput.value.trim().replaceAll("/", "-");
   if (dayInput.value && dayInput.validity.valid) monthInput.value = dayInput.value.slice(0, 7);
-  void loadHistory();
+  resumeSync();
 });
 byId("clear-day")?.addEventListener("click", () => {
   dayInput.value = "";
-  void loadHistory();
+  resumeSync();
 });
 byId("measured-at").addEventListener("input", () => { measuredAtEdited = true; });
 form.addEventListener("submit", saveRecord);
@@ -482,3 +616,7 @@ if (editDialog) {
   });
 }
 initialize().catch(() => showWelcome("页面暂时无法打开，请刷新重试。"));
+window.addEventListener("online", resumeSync);
+window.addEventListener("pageshow", (event) => { if (event.persisted) resumeSync(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeSync(); });
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});

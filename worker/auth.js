@@ -38,15 +38,20 @@ export class FamilyAuth extends DurableObject {
         hash, challenge, now).toArray()[0];
       if (!code) return null;
       this.sql.exec("DELETE FROM codes WHERE hash = ?", hash);
-      this.sql.exec("DELETE FROM sessions WHERE expires <= ?", now);
-      this.sql.exec("INSERT INTO sessions VALUES (?, ?, ?, ?)", sessionHash, code.user, code.verifier,
-        now + sessionLifetime);
-      return code;
+      return { ...code, expiresAt: this.issueSession(sessionHash, code.user, code.verifier) };
     });
   }
 
+  issueSession(hash, user, verifier) {
+    const now = Date.now();
+    const expiresAt = now + sessionLifetime;
+    this.sql.exec("DELETE FROM sessions WHERE expires <= ?", now);
+    this.sql.exec("INSERT INTO sessions VALUES (?, ?, ?, ?)", hash, user, verifier, expiresAt);
+    return expiresAt;
+  }
+
   getSession(hash) {
-    return this.sql.exec("SELECT user, verifier FROM sessions WHERE hash = ? AND expires > ?",
+    return this.sql.exec("SELECT user, verifier, expires AS expiresAt FROM sessions WHERE hash = ? AND expires > ?",
       hash, Date.now()).toArray()[0] ?? null;
   }
 
