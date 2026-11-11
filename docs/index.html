@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=7">
-  <script type="module" src="./app.js?v=7"></script>
+  <link rel="stylesheet" href="./style.css?v=8">
+  <script type="module" src="./app.js?v=8"></script>
 </head>
 <body>
   <main>
@@ -87,16 +87,6 @@
           </div>
         </section>
 
-        <section class="card history-day-card" aria-labelledby="history-day-title">
-          <div class="history-card-head">
-            <h2 id="history-day-title"></h2>
-            <p id="history-status" class="status" role="status"></p>
-          </div>
-          <p id="history-empty" class="history-empty" role="status" hidden></p>
-          <p id="history-notice" class="status" role="status"></p>
-          <ul id="history-list" aria-label="测量记录"></ul>
-        </section>
-
         <section class="card history-trend" aria-labelledby="trend-title">
           <div class="history-card-head">
             <div>
@@ -116,6 +106,16 @@
           <canvas id="trend-chart" role="img" aria-label="高压、低压和脉搏的月度趋势图" aria-describedby="trend-description trend-point"></canvas>
           <p id="trend-empty" class="history-empty" hidden></p>
           <p id="trend-point" class="trend-point" aria-live="polite"></p>
+        </section>
+
+        <section class="card history-day-card" aria-labelledby="history-day-title">
+          <div class="history-card-head">
+            <h2 id="history-day-title"></h2>
+            <p id="history-status" class="status" role="status"></p>
+          </div>
+          <p id="history-empty" class="history-empty" role="status" hidden></p>
+          <p id="history-notice" class="status" role="status"></p>
+          <ul id="history-list" aria-label="测量记录"></ul>
         </section>
       </div>
     </div>
