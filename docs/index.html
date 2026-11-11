@@ -7,8 +7,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://carrot-blood-pressure-api.pages.dev http://127.0.0.1:8787; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#f1f7f3">
   <title>家庭血压本</title>
-  <link rel="stylesheet" href="./style.css?v=2">
-  <script type="module" src="./app.js?v=2"></script>
+  <link rel="stylesheet" href="./style.css?v=3">
+  <script type="module" src="./app.js?v=3"></script>
 </head>
 <body>
   <main>
@@ -65,9 +65,38 @@
           <button id="refresh" class="secondary" type="button">刷新</button>
         </div>
         <p id="history-status" class="status" role="status"></p>
+        <p id="history-notice" class="status" role="status"></p>
         <ul id="history-list" aria-label="测量记录"></ul>
       </section>
     </div>
   </main>
+  <dialog id="edit-dialog" aria-labelledby="edit-heading">
+    <h2 id="edit-heading">编辑记录</h2>
+    <form id="edit-form">
+      <fieldset id="edit-fields">
+        <label for="edit-person">测量人</label>
+        <select id="edit-person" name="person">
+          <option value="">未标注</option>
+          <option value="father">爸爸</option>
+          <option value="mother">妈妈</option>
+        </select>
+        <div class="readings">
+          <label for="edit-systolic">高压 <small>mmHg</small></label>
+          <label for="edit-diastolic">低压 <small>mmHg</small></label>
+          <input id="edit-systolic" name="systolic" type="number" inputmode="numeric" min="1" max="999" required>
+          <input id="edit-diastolic" name="diastolic" type="number" inputmode="numeric" min="1" max="999" required>
+        </div>
+        <label for="edit-pulse">脉搏 <small>选填</small></label>
+        <input id="edit-pulse" name="pulse" type="number" inputmode="numeric" min="1" max="999">
+        <label for="edit-measured-at">测量时间 <small>北京时间</small></label>
+        <input id="edit-measured-at" name="measuredAt" type="datetime-local" min="2000-01-01T00:00" max="2099-12-31T23:59" required>
+      </fieldset>
+      <div class="edit-actions">
+        <button id="edit-cancel" class="secondary" type="button">取消</button>
+        <button id="edit-save" type="submit">保存修改</button>
+      </div>
+      <p id="edit-status" class="status" role="status"></p>
+    </form>
+  </dialog>
 </body>
 </html>

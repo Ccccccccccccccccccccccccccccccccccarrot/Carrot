@@ -131,3 +131,53 @@ test("lost save acknowledgement, duplicate submission and concurrent writes do n
   const history = await (await api("/api/records?month=2026-12", { token: second })).json();
   assert.deepEqual(history.records, [right, left, first]);
 });
+
+test("edits and deletes are authorized, guarded against stale data, and safe to retry", async (t) => {
+  const { api, login, controls } = setup(t);
+  const writer = await login("family");
+  const original = record();
+  const corrected = { ...original, systolic: 128, person: "father" };
+  const edit = (from, to, token = writer) => api("/api/records", {
+    method: "PATCH", token, data: { original: from, record: to },
+  });
+  const remove = (from, token = writer) => api("/api/records", {
+    method: "DELETE", token, data: { original: from },
+  });
+  assert.equal((await edit(original, corrected, null)).status, 401);
+  assert.equal((await remove(original, null)).status, 401);
+  assert.equal((await api("/api/records", { token: writer, data: original })).status, 201);
+  assert.equal((await edit(original, { ...corrected, id: randomUUID() })).status, 400);
+  controls.failAfterWrite = true;
+  assert.equal((await edit(original, corrected)).status, 503);
+  assert.equal((await edit(original, corrected)).status, 200);
+  assert.equal((await remove(original)).status, 409);
+  assert.equal((await edit(original, { ...corrected, pulse: 72 })).status, 409);
+  assert.deepEqual((await (await api("/api/records?month=2026-12", { token: writer })).json()).records, [corrected]);
+  controls.failAfterWrite = true;
+  assert.equal((await remove(corrected)).status, 503);
+  assert.equal((await remove(corrected)).status, 200);
+  assert.equal((await api("/api/records", { token: writer, data: original })).status, 409);
+  assert.deepEqual((await (await api("/api/records?month=2026-12", { token: writer })).json()).records, []);
+});
+
+test("changing the Beijing month updates both files together and keeps the record ID", async (t) => {
+  const { api, login, controls } = setup(t);
+  const token = await login("family");
+  const original = record({ person: "father" });
+  const moved = { ...original, measuredAt: "2026-11-30T15:59:00.000Z" };
+  const edit = (from, to) => api("/api/records", { method: "PATCH", token, data: { original: from, record: to } });
+  const history = async (month) => (await (await api(`/api/records?month=${month}`, { token })).json()).records;
+  const existing = record({ measuredAt: "2026-11-26T00:00:00.000Z", person: "mother" });
+  for (const data of [original, existing]) assert.equal((await api("/api/records", { token, data })).status, 201);
+  controls.conflicts = 1;
+  controls.failAfterWrite = true;
+  assert.equal((await edit(original, moved)).status, 503);
+  assert.equal(controls.conflictResponses, 1);
+  assert.equal((await edit(original, moved)).status, 200);
+  assert.equal((await api("/api/records", { token, data: original })).status, 409);
+  assert.deepEqual(await history("2026-12"), []);
+  assert.deepEqual(await history("2026-11"), [moved, existing]);
+  assert.equal((await edit(moved, original)).status, 200);
+  assert.deepEqual(await history("2026-12"), [original]);
+  assert.deepEqual(await history("2026-11"), [existing]);
+});

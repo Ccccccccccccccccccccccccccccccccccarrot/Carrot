@@ -37,7 +37,14 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .history-controls label { margin: 0; }
 ul { list-style: none; margin: .65rem 0 0; padding: 0; }
 li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
+#history-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .4rem; }
 .record-meta { display: flex; flex-wrap: wrap; gap: 0 .6rem; }
 li time { color: #51645a; font-size: .85rem; }
 li strong { margin-right: .5rem; font-size: 1.2rem; }
 li span { display: inline-block; font-size: .85rem; color: #51645a; }
+.record-actions { display: flex; gap: .3rem; }
+.record-actions button { padding: .35rem .55rem; font-size: .85rem; }
+button.danger { color: #9a3021; border-color: #d6a9a2; }
+#edit-dialog { width: min(28rem, calc(100% - 1.5rem)); color: inherit; padding: 1rem; border: 1px solid #a6c1b2; border-radius: .85rem; }
+#edit-dialog::backdrop { background: rgb(25 56 46 / 40%); }
+.edit-actions { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; }

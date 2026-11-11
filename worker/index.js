@@ -1,5 +1,5 @@
 import { hash, passwordPattern, randomToken, tokenPattern, usernamePattern, verifyPassword } from "./security.js";
-import { appendRecord, listRecords, monthOf, monthPattern, normalizeRecord } from "./records.js";
+import { appendRecord, changeRecord, listRecords, monthOf, monthPattern, normalizeRecord } from "./records.js";
 
 export { FamilyAuth } from "./auth.js";
 
@@ -132,7 +132,7 @@ export default {
       if (method === "OPTIONS") {
         return new Response(null, { status: 204, headers: {
           ...securityHeaders, Vary: "Origin", "Access-Control-Allow-Origin": pages.origin,
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Authorization, Content-Type",
         } });
       }
@@ -167,6 +167,16 @@ export default {
         if (result === "retry") return reply({ error: "try_again" }, 503);
         if (result === "id-conflict") return reply({ error: "id_conflict" }, 409);
         return reply({ record }, result === "created" ? 201 : 200);
+      }
+      if (path === "/api/records" && (method === "PATCH" || method === "DELETE")) {
+        const data = await readJson(request);
+        const original = normalizeRecord(data?.original);
+        const replacement = method === "PATCH" ? normalizeRecord(data?.record) : null;
+        if (!original || (method === "PATCH" && replacement?.id !== original.id)) throw new BadRequest();
+        const result = await changeRecord(env, original, replacement);
+        if (result === "retry") return reply({ error: "try_again" }, 503);
+        if (result === "conflict") return reply({ error: "record_changed" }, 409);
+        return reply({ ok: true });
       }
       return reply({ error: "method_not_allowed" }, 405);
     } catch (error) {
