@@ -36,39 +36,65 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 #sync-status { margin: 0 0 .65rem; }
 .record-meta .record-state { color: #765319; }
 .record-meta .record-state.conflict, .record-meta .record-state.invalid { color: #9a3021; }
-.history-controls { display: grid; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto; gap: .45rem; }
-.history-controls label { margin: 0; }
-.calendar-field { position: relative; min-width: 0; }
-.calendar-field::after {
-  content: "";
-  position: absolute; top: 50%; right: .55rem; transform: translateY(-50%); pointer-events: none;
-  width: 14px; height: 14px; border: 1.5px solid currentColor; border-radius: 3px;
-  background:
-    linear-gradient(currentColor, currentColor) 0 27% / 100% 1px no-repeat,
-    radial-gradient(circle, currentColor 1px, transparent 1.25px) 1px 50% / 4px 5px repeat-x;
-}
-.calendar-field input { height: 2.8rem; padding-right: 1.8rem; }
-.calendar-field input::placeholder { color: inherit; opacity: 1; }
-.calendar-value { display: none; }
-.calendar-enhanced .calendar-value {
-  display: flex; align-items: center; min-height: 2.8rem;
-  padding: .45rem 1.8rem .45rem .55rem; border: 1px solid #a6b7ad; border-radius: .55rem;
-  white-space: nowrap; background: #fff;
-}
-.calendar-enhanced input {
-  position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; opacity: 0; cursor: pointer;
-}
-.calendar-enhanced input::-webkit-calendar-picker-indicator {
-  position: absolute; inset: 0; box-sizing: border-box; width: 100%; height: 100%; padding: 0; margin: 0; cursor: pointer;
-}
-.calendar-enhanced:focus-within { outline: 3px solid #4c876f; outline-offset: 2px; border-radius: .55rem; }
-@media (hover: hover) and (pointer: fine) {
-  .calendar-enhanced input:focus-visible { opacity: 1; outline: none; padding-right: .55rem; }
-  .calendar-enhanced input:focus-visible::-webkit-calendar-picker-indicator { position: static; width: auto; height: auto; }
-  .calendar-enhanced:has(input:focus-visible)::after { visibility: hidden; }
-}
 ul { list-style: none; margin: .65rem 0 0; padding: 0; }
 li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
+#history-panel .card + .card { margin-top: .65rem; }
+.history-card-head, .calendar-footer { display: flex; justify-content: space-between; align-items: center; gap: .55rem; }
+.history-card-head h2, .history-card-head .status { margin: 0; }
+.history-calendar h2 { font-size: 1.28rem; }
+.month-actions { display: flex; gap: .33rem; }
+.month-actions button {
+  width: 44px; min-height: 44px; padding: 0; display: grid; place-items: center;
+  border-color: #d4e2d8;
+}
+.month-actions i {
+  width: 9px; height: 9px; border-top: 2px solid currentColor; border-right: 2px solid currentColor;
+  transform: rotate(-135deg);
+}
+#next-month i { transform: rotate(45deg); }
+.history-weekdays, #history-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.history-weekdays { margin: .65rem 0 .32rem; text-align: center; color: #536b60; font-size: .75rem; }
+#history-days button {
+  position: relative; min-width: 0; min-height: 44px; padding: 4px 0 9px;
+  background: transparent; color: inherit; font-size: .95rem;
+}
+#history-days button.has-readings { background: #edf6ef; }
+#history-days button[aria-pressed="true"] { background: #155c43; color: #fff; }
+#history-days button.has-readings::after, .calendar-key span {
+  width: 5px; height: 5px; border-radius: 50%; background: #418e70;
+}
+#history-days button.has-readings::after { content: ""; position: absolute; left: calc(50% - 2.5px); bottom: 6px; }
+#history-days button[aria-pressed="true"]::after { background: #b7e4ca; }
+.calendar-footer { margin-top: .45rem; }
+.calendar-key { display: flex; align-items: center; gap: 7px; margin: 0; color: #536b60; font-size: .75rem; }
+#refresh { min-height: 44px; padding: .25rem .65rem; font-size: .82rem; border-color: #d4e2d8; }
+.history-empty, .trend-point {
+  margin: .6rem 0 0; padding: .5rem .65rem; border-radius: .5rem;
+  background: #f3f7f3; color: #536b60; font-size: .82rem;
+}
+.history-trend .history-card-head { align-items: flex-start; }
+#trend-description { margin: .16rem 0 0; font-size: .76rem; color: #536b60; }
+.trend-people { display: flex; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: .65rem; background: #eaf1eb; }
+.trend-people button {
+  min-height: 44px; padding: .25rem .48rem; border: 0; border-radius: .45rem;
+  background: transparent; color: #19382e; font-size: .88rem;
+}
+.trend-people button[aria-pressed="true"] { background: #155c43; color: #fff; }
+.trend-legend { display: flex; flex-wrap: wrap; gap: .3rem .65rem; margin: .65rem 0 .25rem; }
+.trend-legend li {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0;
+  font-size: .82rem; font-weight: 650;
+}
+.trend-legend small { font-size: .69rem; }
+.trend-legend i { width: 16px; border-top: 3px solid; border-radius: 2px; }
+.trend-legend .high i { border-color: #b44538; }
+.trend-legend .low i { border-color: #286790; }
+.trend-legend .pulse i { border-color: #26775c; border-top-style: dashed; }
+#trend-chart { display: block; width: 100%; height: 190px; cursor: crosshair; }
+.trend-point { margin-top: .2rem; }
+@media (hover: hover) {
+  .month-actions button:hover, #history-days button:hover { border-color: #91b6a3; }
+}
 #history-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .4rem; }
 .record-meta { display: flex; flex-wrap: wrap; gap: 0 .6rem; }
 li time { color: #51645a; font-size: .85rem; }
@@ -80,7 +106,10 @@ li span { display: inline-block; font-size: .85rem; color: #51645a; }
 .record-actions button { padding: .35rem .55rem; font-size: .85rem; }
 @media (max-width: 460px) {
   main { padding-inline: .8rem; }
-  #history-panel { padding-inline: .7rem; }
+  #history-panel .card { padding-inline: .7rem; }
+  .history-weekdays, #history-days { gap: 4px; }
+  .history-card-head h2 { font-size: 1.16rem; }
+  #trend-description { font-size: .72rem; }
   .record-values { column-gap: .2rem; }
   .record-pressure { gap: .3rem; }
   .record-values strong { font-size: 1.1rem; }
