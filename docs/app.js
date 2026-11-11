@@ -8,6 +8,8 @@ const save = byId("save");
 const saveStatus = byId("save-status");
 const monthInput = byId("history-month");
 const dayInput = byId("history-day");
+const monthLabel = byId("history-month-label");
+const dayLabel = byId("history-day-label");
 const historyList = byId("history-list");
 const historyStatus = byId("history-status");
 const historyNotice = byId("history-notice");
@@ -43,6 +45,14 @@ function rememberHistoryDate() {
   sessionStorage.setItem(monthKey, monthInput.value);
   if (dayInput?.value) sessionStorage.setItem(dayKey, dayInput.value);
   else sessionStorage.removeItem(dayKey);
+}
+
+function updateCalendarLabels() {
+  if (monthLabel) {
+    const [year, month] = monthInput.value.split("-");
+    monthLabel.textContent = month ? `${year}年${Number(month)}月` : "yyyy/mm";
+  }
+  if (dayLabel) dayLabel.textContent = dayInput.value.replaceAll("-", "/") || "yyyy/mm/日";
 }
 
 function encode(bytes) {
@@ -120,6 +130,7 @@ function showBook() {
   monthInput.value = month && monthPattern.test(month) ? month : beijingInputTime().slice(0, 7);
   const day = sessionStorage.getItem(dayKey);
   if (dayInput) dayInput.value = day?.startsWith(`${monthInput.value}-`) ? day : "";
+  updateCalendarLabels();
   resetForm();
   if (pending) {
     displayPending();
@@ -211,11 +222,22 @@ function renderRecord(record) {
   timestamp.dateTime = record.measuredAt;
   timestamp.textContent = timeFormat.format(new Date(record.measuredAt));
   metadata.append(person, timestamp);
+  const values = document.createElement("div");
+  values.className = "record-values";
+  const pressure = document.createElement("div");
+  pressure.className = "record-pressure";
   const readings = document.createElement("strong");
   readings.textContent = `${record.systolic} / ${record.diastolic}`;
   const unit = document.createElement("span");
-  unit.textContent = record.pulse ? `mmHg · 脉搏 ${record.pulse} 次/分钟` : "mmHg";
-  summary.append(metadata, readings, unit);
+  unit.textContent = "mmHg";
+  pressure.append(readings, unit);
+  values.append(pressure);
+  if (record.pulse) {
+    const pulse = document.createElement("span");
+    pulse.textContent = `· 脉搏 ${record.pulse} 次/分钟`;
+    values.append(pulse);
+  }
+  summary.append(metadata, values);
   item.append(summary);
   if (editDialog) {
     const actions = document.createElement("div");
@@ -325,6 +347,7 @@ async function changeHistory(original, replacement) {
 
 async function loadHistory() {
   const request = ++historyRequest;
+  updateCalendarLabels();
   historyList.replaceChildren();
   if (historyNotice) {
     historyNotice.textContent = "";
@@ -430,11 +453,18 @@ byId("logout").addEventListener("click", logout);
 byId("new-tab").addEventListener("click", () => showTab(false));
 byId("history-tab").addEventListener("click", () => showTab(true));
 byId("refresh").addEventListener("click", loadHistory);
+for (const input of [monthInput, dayInput]) {
+  if (input && input.type !== "text") {
+    input.closest(".calendar-field")?.classList.add("calendar-enhanced");
+    input.addEventListener("input", updateCalendarLabels);
+  }
+}
 monthInput.addEventListener("change", () => {
   if (dayInput) dayInput.value = "";
   void loadHistory();
 });
 dayInput?.addEventListener("change", () => {
+  if (dayInput.type === "text") dayInput.value = dayInput.value.trim().replaceAll("/", "-");
   if (dayInput.value && dayInput.validity.valid) monthInput.value = dayInput.value.slice(0, 7);
   void loadHistory();
 });
