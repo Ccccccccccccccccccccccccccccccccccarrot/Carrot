@@ -7,6 +7,7 @@ const assets = new Map([
   ["/Carrot/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/Carrot/style.css", ["style.css", "text/css; charset=utf-8"]],
   ["/Carrot/storage.js", ["storage.js", "text/javascript; charset=utf-8"]],
+  ["/Carrot/history.js", ["history.js", "text/javascript; charset=utf-8"]],
   ["/Carrot/sw.js", ["sw.js", "text/javascript; charset=utf-8"]],
   ["/Carrot/manifest.webmanifest", ["manifest.webmanifest", "application/manifest+json"]],
   ...[180, 192, 512].map((size) => [`/Carrot/icon-${size}.png`, [`icon-${size}.png`, "image/png"]]),

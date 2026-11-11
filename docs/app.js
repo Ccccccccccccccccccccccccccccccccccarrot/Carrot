@@ -1,5 +1,6 @@
 import { workerOrigin } from "./config.js";
-import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=6";
+import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=7";
+import { createHistoryView } from "./history.js?v=7";
 
 const byId = (id) => document.getElementById(id);
 const form = byId("record-form");
@@ -7,12 +8,7 @@ const fields = byId("record-fields");
 const personInput = byId("person");
 const save = byId("save");
 const saveStatus = byId("save-status");
-const monthInput = byId("history-month");
-const dayInput = byId("history-day");
-const monthLabel = byId("history-month-label");
-const dayLabel = byId("history-day-label");
 const historyList = byId("history-list");
-const historyStatus = byId("history-status");
 const historyNotice = byId("history-notice");
 const editDialog = byId("edit-dialog");
 const editForm = byId("edit-form");
@@ -41,23 +37,53 @@ let historyRequest = 0;
 let measuredAtEdited = false;
 let editing = null;
 let changingHistory = false;
+let historyMonth = "";
+let historyDay = "";
+let historySnapshot = null;
+
+const historyView = createHistoryView({
+  personNames,
+  renderRecord,
+  selectDay(day) {
+    if (changingHistory || !account) return;
+    historyDay = day;
+    historyNotice.textContent = "";
+    rememberHistoryDate();
+    renderHistory();
+  },
+  changeMonth(step) {
+    if (changingHistory || !account) return;
+    const [year, month] = historyMonth.split("-").map(Number);
+    const next = new Date(Date.UTC(year, month - 1 + step, 1)).toISOString().slice(0, 7);
+    if (!monthPattern.test(next)) return;
+    historyMonth = next;
+    historyDay = "";
+    historySnapshot = null;
+    historyNotice.textContent = "";
+    rememberHistoryDate();
+    renderHistory();
+    resumeSync();
+  },
+});
 
 function beijingInputTime(date = new Date()) {
   return new Date(date.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16);
 }
 
 function rememberHistoryDate() {
-  sessionStorage.setItem(monthKey, monthInput.value);
-  if (dayInput?.value) sessionStorage.setItem(dayKey, dayInput.value);
+  sessionStorage.setItem(monthKey, historyMonth);
+  if (historyDay) sessionStorage.setItem(dayKey, historyDay);
   else sessionStorage.removeItem(dayKey);
 }
 
-function updateCalendarLabels() {
-  if (monthLabel) {
-    const [year, month] = monthInput.value.split("-");
-    monthLabel.textContent = month ? `${year}年${Number(month)}月` : "yyyy/mm";
-  }
-  if (dayLabel) dayLabel.textContent = dayInput.value.replaceAll("-", "/") || "yyyy/mm/日";
+function renderHistory() {
+  const today = beijingInputTime().slice(0, 10);
+  const snapshot = historySnapshot?.month === historyMonth ? historySnapshot : null;
+  const rows = snapshot?.rows ?? [];
+  const latest = rows.find(({ state }) => state !== "deleting");
+  const fallback = today.startsWith(historyMonth) ? today : `${historyMonth}-01`;
+  const day = historyDay || latest?.date || fallback;
+  historyView.show(historyMonth, day, rows, snapshot?.complete ?? false);
 }
 
 function encode(bytes) {
@@ -80,7 +106,8 @@ function newRecordId() {
 function showWelcome(message, canLogin = true) {
   historyRequest += 1;
   if (editDialog?.open) editDialog.close();
-  historyList.replaceChildren();
+  historySnapshot = null;
+  historyView.clear();
   byId("book").hidden = true;
   byId("logout").hidden = true;
   byId("welcome").hidden = false;
@@ -143,10 +170,11 @@ async function showBook() {
   byId("book").hidden = false;
   byId("logout").hidden = false;
   const month = sessionStorage.getItem(monthKey);
-  monthInput.value = month && monthPattern.test(month) ? month : beijingInputTime().slice(0, 7);
-  const day = sessionStorage.getItem(dayKey);
-  if (dayInput) dayInput.value = day?.startsWith(`${monthInput.value}-`) ? day : "";
-  updateCalendarLabels();
+  historyMonth = month && monthPattern.test(month) ? month : beijingInputTime().slice(0, 7);
+  const day = sessionStorage.getItem(dayKey) ?? "";
+  const date = new Date(`${day}T00:00:00Z`);
+  historyDay = day.startsWith(`${historyMonth}-`) && Number.isFinite(date.valueOf()) &&
+    date.toISOString().slice(0, 10) === day ? day : "";
   resetForm();
   saveStatus.textContent = "";
   historyNotice.textContent = "";
@@ -201,8 +229,8 @@ async function saveRecord(event) {
   try {
     await saveLocally("POST", null, record);
     const savedDay = beijingInputTime(measuredAt).slice(0, 10);
-    monthInput.value = savedDay.slice(0, 7);
-    if (dayInput?.value) dayInput.value = savedDay;
+    historyMonth = savedDay.slice(0, 7);
+    historyDay = savedDay;
     rememberHistoryDate();
     resetForm();
     saveStatus.textContent = "已保存到本机";
@@ -345,8 +373,8 @@ function submitEdit(event) {
 async function changeHistory(original, replacement) {
   if (!account || saving || changingHistory) return;
   const status = replacement ? editStatus : historyNotice;
-  const controls = ["logout", "new-tab", "history-tab", "history-month", "refresh",
-    "history-day", "clear-day", "edit-fields", "edit-save", "edit-cancel"].map(byId).filter(Boolean);
+  const controls = ["logout", "new-tab", "history-tab", "previous-month", "next-month",
+    "refresh", "edit-fields", "edit-save", "edit-cancel"].map(byId);
   changingHistory = true;
   controls.forEach((control) => { control.disabled = true; });
   historyList.querySelectorAll("button").forEach((button) => { button.disabled = true; });
@@ -370,20 +398,8 @@ async function changeHistory(original, replacement) {
 
 async function loadHistory(owner, remote = false) {
   const request = ++historyRequest;
-  const month = monthInput.value;
-  const day = dayInput?.value;
-  const current = () => owner === account && request === historyRequest &&
-    monthInput.value === month && dayInput?.value === day;
-  updateCalendarLabels();
-  const parsedDay = day && new Date(`${day}T00:00:00Z`);
-  const validMonth = monthPattern.test(month);
-  if (!validMonth || (day && (!dayInput.validity.valid || !day.startsWith(`${month}-`) ||
-      !Number.isFinite(parsedDay.valueOf()) || parsedDay.toISOString().slice(0, 10) !== day))) {
-    historyList.replaceChildren();
-    historyStatus.textContent = validMonth ? "请选择有效日期。" : "请选择有效月份。";
-    return false;
-  }
-  rememberHistoryDate();
+  const month = historyMonth;
+  const current = () => owner === account && request === historyRequest && historyMonth === month;
   if (remote) {
     const response = await api(`/api/records?month=${month}`, { token: owner.session });
     if (!current()) return false;
@@ -398,18 +414,23 @@ async function loadHistory(owner, remote = false) {
   }
   const { cache, changes } = await readMonth(owner.username, month);
   if (!current()) return false;
-  const rows = new Map((cache?.records ?? []).map((record) => [record.id, { record }]));
+  const confirmed = new Map((cache?.records ?? []).map((record) => [record.id, record]));
+  const rows = new Map([...confirmed].map(([id, record]) => [id, { record, trend: record }]));
   for (const { id, record, original, reason } of changes) {
     const previous = rows.get(id);
     if (previous?.state === "conflict" || previous?.state === "invalid") continue;
-    rows.set(id, { record: record ?? previous?.record ?? original, state: reason ?? (record ? "pending" : "deleting") });
+    rows.set(id, {
+      record: record ?? previous?.record ?? original,
+      state: reason ?? (record ? "pending" : "deleting"),
+      trend: reason ? confirmed.get(id) : record,
+    });
   }
-  const visible = [...rows.values()].filter(({ record }) => !day || beijingInputTime(new Date(record.measuredAt)).startsWith(day))
+  const ordered = [...rows.values()].map((row) => ({
+    ...row, date: beijingInputTime(new Date(row.record.measuredAt)).slice(0, 10),
+  }))
     .sort((a, b) => b.record.measuredAt.localeCompare(a.record.measuredAt));
-  historyList.replaceChildren(...visible.map(renderRecord));
-  historyStatus.textContent = visible.length ? `共 ${visible.length} 条`
-    : cache?.complete ? (day ? "这一天还没有记录。" : "这个月还没有记录。")
-      : "本机还没有这段历史，联网后会同步。";
+  historySnapshot = { month, rows: ordered, complete: Boolean(cache?.complete) };
+  renderHistory();
   return remote;
 }
 
@@ -494,8 +515,10 @@ function showTab(history, refresh = true) {
   byId("history-panel").hidden = !history;
   byId("new-tab").setAttribute("aria-pressed", String(!history));
   byId("history-tab").setAttribute("aria-pressed", String(history));
-  if (history && refresh) resumeSync();
-  else if (!history && !measuredAtEdited) byId("measured-at").value = beijingInputTime();
+  if (history) {
+    renderHistory();
+    if (refresh) resumeSync();
+  } else if (!measuredAtEdited) byId("measured-at").value = beijingInputTime();
 }
 
 async function logout() {
@@ -587,25 +610,6 @@ byId("logout").addEventListener("click", logout);
 byId("new-tab").addEventListener("click", () => showTab(false));
 byId("history-tab").addEventListener("click", () => showTab(true));
 byId("refresh").addEventListener("click", resumeSync);
-for (const input of [monthInput, dayInput]) {
-  if (input && input.type !== "text") {
-    input.closest(".calendar-field")?.classList.add("calendar-enhanced");
-    input.addEventListener("input", updateCalendarLabels);
-  }
-}
-monthInput.addEventListener("change", () => {
-  if (dayInput) dayInput.value = "";
-  resumeSync();
-});
-dayInput?.addEventListener("change", () => {
-  if (dayInput.type === "text") dayInput.value = dayInput.value.trim().replaceAll("/", "-");
-  if (dayInput.value && dayInput.validity.valid) monthInput.value = dayInput.value.slice(0, 7);
-  resumeSync();
-});
-byId("clear-day")?.addEventListener("click", () => {
-  dayInput.value = "";
-  resumeSync();
-});
 byId("measured-at").addEventListener("input", () => { measuredAtEdited = true; });
 form.addEventListener("submit", saveRecord);
 if (editDialog) {

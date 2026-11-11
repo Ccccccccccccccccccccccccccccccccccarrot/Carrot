@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=6">
-  <script type="module" src="./app.js?v=6"></script>
+  <link rel="stylesheet" href="./style.css?v=7">
+  <script type="module" src="./app.js?v=7"></script>
 </head>
 <body>
   <main>
@@ -68,26 +68,56 @@
         </form>
       </section>
 
-      <section id="history-panel" class="card" aria-labelledby="history-heading" hidden>
-        <h2 id="history-heading">历史记录</h2>
-        <div class="history-controls">
-          <label for="history-month">月份</label>
-          <div class="calendar-field">
-            <span id="history-month-label" class="calendar-value" aria-hidden="true"></span>
-            <input id="history-month" type="month" min="2000-01" max="2099-12" placeholder="YYYY-MM" required>
+      <div id="history-panel" hidden>
+        <section class="card history-calendar" aria-labelledby="history-month-title">
+          <div class="history-card-head">
+            <h2 id="history-month-title" aria-live="polite"></h2>
+            <div class="month-actions" aria-label="切换月份">
+              <button id="previous-month" class="secondary" type="button" aria-label="上个月"><i aria-hidden="true"></i></button>
+              <button id="next-month" class="secondary" type="button" aria-label="下个月"><i aria-hidden="true"></i></button>
+            </div>
           </div>
-          <button id="refresh" class="secondary" type="button">刷新</button>
-          <label for="history-day">日期</label>
-          <div class="calendar-field">
-            <span id="history-day-label" class="calendar-value" aria-hidden="true"></span>
-            <input id="history-day" type="date" min="2000-01-01" max="2099-12-31" placeholder="yyyy/mm/日" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}">
+          <div class="history-weekdays" aria-hidden="true">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
           </div>
-          <button id="clear-day" class="secondary" type="button">整月</button>
-        </div>
-        <p id="history-status" class="status" role="status"></p>
-        <p id="history-notice" class="status" role="status"></p>
-        <ul id="history-list" aria-label="测量记录"></ul>
-      </section>
+          <div id="history-days" aria-label="本月日期"></div>
+          <div class="calendar-footer">
+            <p class="calendar-key"><span aria-hidden="true"></span>有测量记录</p>
+            <button id="refresh" class="secondary" type="button">刷新</button>
+          </div>
+        </section>
+
+        <section class="card history-day-card" aria-labelledby="history-day-title">
+          <div class="history-card-head">
+            <h2 id="history-day-title"></h2>
+            <p id="history-status" class="status" role="status"></p>
+          </div>
+          <p id="history-empty" class="history-empty" role="status" hidden></p>
+          <p id="history-notice" class="status" role="status"></p>
+          <ul id="history-list" aria-label="测量记录"></ul>
+        </section>
+
+        <section class="card history-trend" aria-labelledby="trend-title">
+          <div class="history-card-head">
+            <div>
+              <h2 id="trend-title">月度趋势</h2>
+              <p id="trend-description">同一天测量多次时，取当天平均值</p>
+            </div>
+            <div class="trend-people" aria-label="查看谁的趋势">
+              <button type="button" data-trend-person="father" aria-pressed="true">爸爸</button>
+              <button type="button" data-trend-person="mother" aria-pressed="false">妈妈</button>
+            </div>
+          </div>
+          <ul class="trend-legend" aria-label="图例">
+            <li class="high"><i aria-hidden="true"></i>高压 <small>mmHg</small></li>
+            <li class="low"><i aria-hidden="true"></i>低压 <small>mmHg</small></li>
+            <li class="pulse"><i aria-hidden="true"></i>脉搏 <small>次/分</small></li>
+          </ul>
+          <canvas id="trend-chart" role="img" aria-label="高压、低压和脉搏的月度趋势图" aria-describedby="trend-description trend-point"></canvas>
+          <p id="trend-empty" class="history-empty" hidden></p>
+          <p id="trend-point" class="trend-point" aria-live="polite"></p>
+        </section>
+      </div>
     </div>
   </main>
   <dialog id="edit-dialog" aria-labelledby="edit-heading">
