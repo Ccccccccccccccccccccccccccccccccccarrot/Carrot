@@ -7,7 +7,7 @@
   "preview_urls": false,
   "observability": { "enabled": false },
   "vars": {
-    "PAGES_URL": "https://cccccccccccccccccccccccccccccccccarrot.github.io/Carrot/"
+    "PAGES_URL": "https://ccccccccccccccccccccccccccccccccccarrot.github.io/Carrot/"
   },
   "durable_objects": {
     "bindings": [{ "name": "AUTH", "class_name": "FamilyAuth" }]
