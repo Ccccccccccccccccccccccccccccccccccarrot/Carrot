@@ -147,6 +147,11 @@ test("edits and deletes are authorized, guarded against stale data, and safe to 
   assert.equal((await remove(original, null)).status, 401);
   assert.equal((await api("/api/records", { token: writer, data: original })).status, 201);
   assert.equal((await edit(original, { ...corrected, id: randomUUID() })).status, 400);
+  for (const measuredAt of ["2026-11-30T16:12:00.001Z", "2026-11-30T15:59:59.999Z"]) {
+    const response = await edit(original, { ...corrected, measuredAt });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: "measurement_time_immutable" });
+  }
   controls.failAfterWrite = true;
   assert.equal((await edit(original, corrected)).status, 503);
   assert.equal((await edit(original, corrected)).status, 200);
@@ -160,24 +165,27 @@ test("edits and deletes are authorized, guarded against stale data, and safe to 
   assert.deepEqual((await (await api("/api/records?month=2026-12", { token: writer })).json()).records, []);
 });
 
-test("changing the Beijing month updates both files together and keeps the record ID", async (t) => {
-  const { api, login, controls } = setup(t);
+test("history filters by the Beijing calendar day and validates real dates", async (t) => {
+  const { api, login } = setup(t);
   const token = await login("family");
-  const original = record({ person: "father" });
-  const moved = { ...original, measuredAt: "2026-11-30T15:59:00.000Z" };
-  const edit = (from, to) => api("/api/records", { method: "PATCH", token, data: { original: from, record: to } });
-  const history = async (month) => (await (await api(`/api/records?month=${month}`, { token })).json()).records;
-  const existing = record({ measuredAt: "2026-11-26T00:00:00.000Z", person: "mother" });
-  for (const data of [original, existing]) assert.equal((await api("/api/records", { token, data })).status, 201);
-  controls.conflicts = 1;
-  controls.failAfterWrite = true;
-  assert.equal((await edit(original, moved)).status, 503);
-  assert.equal(controls.conflictResponses, 1);
-  assert.equal((await edit(original, moved)).status, 200);
-  assert.equal((await api("/api/records", { token, data: original })).status, 409);
-  assert.deepEqual(await history("2026-12"), []);
-  assert.deepEqual(await history("2026-11"), [moved, existing]);
-  assert.equal((await edit(moved, original)).status, 200);
-  assert.deepEqual(await history("2026-12"), [original]);
-  assert.deepEqual(await history("2026-11"), [existing]);
+  const previous = record({ measuredAt: "2026-11-30T15:59:59.999Z" });
+  const first = record({ measuredAt: "2026-11-30T16:00:00.000Z" });
+  const last = record({ measuredAt: "2026-12-01T15:59:59.999Z", person: "father" });
+  const next = record({ measuredAt: "2026-12-01T16:00:00.000Z", person: "mother" });
+  for (const data of [previous, first, last, next]) {
+    assert.equal((await api("/api/records", { token, data })).status, 201);
+  }
+  const history = async (query) => {
+    const response = await api(`/api/records?${query}`, { token });
+    assert.equal(response.status, 200);
+    return (await response.json()).records;
+  };
+  assert.deepEqual(await history("date=2026-11-30"), [previous]);
+  assert.deepEqual(await history("date=2026-12-01"), [last, first]);
+  assert.deepEqual(await history("month=2026-12&date=2026-12-02"), [next]);
+  assert.deepEqual(await history("month=2026-12"), [next, last, first]);
+  assert.deepEqual(await history("date=2028-02-29"), []);
+  for (const query of ["date=", "date=2026-02-29", "date=2026-04-31", "month=2026-11&date=2026-12-01"]) {
+    assert.equal((await api(`/api/records?${query}`, { token })).status, 400);
+  }
 });

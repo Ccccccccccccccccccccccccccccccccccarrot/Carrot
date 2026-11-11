@@ -3,22 +3,33 @@ import { base64, base64url, decryptRecords, encryptRecords, unbase64, unbase64ur
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const github = "https://api.github.com";
-const repository = "Ccccccccccccccccccccccccccccccccccarrot/Carrot";
-const repo = `/repos/${repository}`;
+const repo = "/repos/Ccccccccccccccccccccccccccccccccccarrot/Carrot";
 const branch = "records";
 const branchRef = `${repo}/git/ref/heads/${branch}`;
 const apiVersion = "2026-03-10";
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const timestampPattern = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
-const beijingMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit" });
+const beijingDate = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+});
 
 let installation;
 
 export const monthPattern = /^20\d\d-(0[1-9]|1[0-2])$/;
 
+export function validDay(day) {
+  if (!/^20\d\d-\d\d-\d\d$/.test(day)) return false;
+  const date = new Date(`${day}T00:00:00.000Z`);
+  return Number.isFinite(date.valueOf()) && date.toISOString().slice(0, 10) === day;
+}
+
+function dayOf(date) {
+  const parts = beijingDate.formatToParts(date);
+  return ["year", "month", "day"].map((type) => parts.find((part) => part.type === type).value).join("-");
+}
+
 export function monthOf(date) {
-  const parts = beijingMonth.formatToParts(date);
-  return `${parts.find((part) => part.type === "year").value}-${parts.find((part) => part.type === "month").value}`;
+  return dayOf(date).slice(0, 7);
 }
 
 export function normalizeRecord(value) {
@@ -113,10 +124,10 @@ function monthFile(month) {
   return `bp/${month}.enc.json`;
 }
 
-async function readMonth(env, key, month, ref = branch) {
-  const response = await githubFetch(env, `${repo}/contents/${monthFile(month)}?ref=${ref}`);
+async function readMonth(env, key, month) {
+  const response = await githubFetch(env, `${repo}/contents/${monthFile(month)}?ref=${branch}`);
   if (response.status === 404) {
-    if (ref === branch && !(await githubFetch(env, branchRef)).ok) throw new Error("Records branch unavailable");
+    if (!(await githubFetch(env, branchRef)).ok) throw new Error("Records branch unavailable");
     return { records: [] };
   }
   if (!response.ok) throw new Error("Cannot read records");
@@ -130,9 +141,11 @@ async function readMonth(env, key, month, ref = branch) {
   return { sha, records };
 }
 
-export async function listRecords(env, month) {
+export async function listRecords(env, month, day) {
   const { records } = await readMonth(env, await recordsKey(env), month);
-  return records.filter((record) => !record.removed).sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
+  return records
+    .filter((record) => !record.removed && (day == null || dayOf(new Date(record.measuredAt)) === day))
+    .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
 }
 
 function sameRecord(left, right) {
@@ -173,9 +186,7 @@ export async function appendRecord(env, record) {
 
 export async function changeRecord(env, original, replacement) {
   const month = monthOf(new Date(original.measuredAt));
-  const target = replacement ? monthOf(new Date(replacement.measuredAt)) : month;
   const key = await recordsKey(env);
-  if (target !== month) return moveRecord(env, key, month, target, original, replacement);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const { sha, records } = await readMonth(env, key, month);
@@ -186,51 +197,6 @@ export async function changeRecord(env, original, replacement) {
     // Keep the ID reserved so a retry of the original creation cannot restore it.
     records[index] = replacement ?? { id: original.id, removed: "deleted" };
     if (await writeMonth(env, key, month, sha, records)) return "ok";
-  }
-  return "retry";
-}
-
-async function moveRecord(env, key, month, target, original, replacement) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const ref = await githubFetch(env, branchRef);
-    if (!ref.ok) throw new Error("Records branch unavailable");
-    const { object } = await ref.json();
-    const head = object?.sha;
-    if (typeof head !== "string" || !/^[0-9a-f]{40}$/.test(head)) throw new Error("Invalid records branch head");
-    const [source, destination] = await Promise.all([
-      readMonth(env, key, month, head),
-      readMonth(env, key, target, head),
-    ]);
-    const index = source.records.findIndex((item) => item.id === original.id);
-    const destinationIndex = destination.records.findIndex((item) => item.id === original.id);
-    const current = source.records[index];
-    const existing = destination.records[destinationIndex];
-    if (current?.removed === "moved" && sameRecord(existing, replacement)) return "ok";
-    if (!sameRecord(current, original) || (existing && existing.removed !== "moved")) return "conflict";
-    source.records[index] = { id: original.id, removed: "moved" };
-    if (destinationIndex === -1) destination.records.push(replacement);
-    else destination.records[destinationIndex] = replacement;
-    // Both encrypted month files change in the same commit, guarded by the branch head.
-    const additions = await Promise.all([[month, source.records], [target, destination.records]]
-      .map(async ([fileMonth, records]) => ({
-        path: monthFile(fileMonth), contents: await encryptedContents(key, fileMonth, records),
-      })));
-    const response = await githubFetch(env, "/graphql", {
-      method: "POST",
-      body: JSON.stringify({
-        query: "mutation ($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
-        variables: { input: {
-          branch: { repositoryNameWithOwner: repository, branchName: branch },
-          message: { headline: "Update encrypted records" },
-          expectedHeadOid: head,
-          fileChanges: { additions },
-        } },
-      }),
-    });
-    if (!response.ok) throw new Error("GitHub commit failed");
-    const result = await response.json();
-    if (result.data?.createCommitOnBranch?.commit?.oid) return "ok";
-    if (!result.errors?.some((error) => error.type === "STALE_DATA")) throw new Error("GitHub commit failed");
   }
   return "retry";
 }

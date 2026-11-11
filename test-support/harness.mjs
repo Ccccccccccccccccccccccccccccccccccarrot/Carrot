@@ -17,8 +17,6 @@ export function createHarness({ pagesUrl = "https://carrot.test/Carrot/", port }
     name, createHmac("sha256", pepper).update(`${name}\0${password}`).digest("base64url"),
   ]));
   let revision = 0;
-  const head = () => revision.toString(16).padStart(40, "0");
-  const snapshots = new Map([[head(), new Map()]]);
 
   async function mockGitHub(request) {
     const url = new URL(request.url);
@@ -33,38 +31,12 @@ export function createHarness({ pagesUrl = "https://carrot.test/Carrot/", port }
     }
     assert.equal(token, "test-installation-token");
     if (url.pathname === `${repo}/git/ref/heads/records`) {
-      return controls.branchExists ? Response.json({ object: { sha: head() } }) : new Response(null, { status: 404 });
-    }
-    if (url.pathname === "/graphql") {
-      assert.equal(request.method, "POST");
-      const { query, variables: { input } } = await request.json();
-      assert.match(query, /createCommitOnBranch/);
-      assert.deepEqual(input.branch, { repositoryNameWithOwner: repo.slice("/repos/".length), branchName: "records" });
-      assert.equal(input.message.headline, "Update encrypted records");
-      if (input.expectedHeadOid !== head() || controls.conflicts > 0) {
-        if (controls.conflicts > 0) controls.conflicts -= 1;
-        controls.conflictResponses += 1;
-        return Response.json({ errors: [{ type: "STALE_DATA" }] });
-      }
-      assert.equal(input.fileChanges.additions.length, 2);
-      revision += 1;
-      for (const { path, contents } of input.fileChanges.additions) {
-        assert.match(path, /^bp\/20\d\d-\d\d\.enc\.json$/);
-        files.set(`${repo}/contents/${path}`, { sha: String(revision), content: contents });
-      }
-      snapshots.set(head(), new Map(files));
-      if (controls.failAfterWrite) {
-        controls.failAfterWrite = false;
-        return new Response(null, { status: 504 });
-      }
-      return Response.json({ data: { createCommitOnBranch: { commit: { oid: head() } } } });
+      return new Response(null, { status: controls.branchExists ? 200 : 404 });
     }
     assert.ok(url.pathname.startsWith(`${repo}/contents/bp/`));
     if (request.method === "GET") {
-      const ref = url.searchParams.get("ref");
-      const snapshot = ref === "records" ? files : snapshots.get(ref);
-      assert.ok(snapshot);
-      const file = snapshot.get(url.pathname);
+      assert.equal(url.searchParams.get("ref"), "records");
+      const file = files.get(url.pathname);
       return file ? Response.json({ ...file, encoding: "base64" }) : new Response(null, { status: 404 });
     }
     assert.equal(request.method, "PUT");
@@ -82,7 +54,6 @@ export function createHarness({ pagesUrl = "https://carrot.test/Carrot/", port }
       return new Response(null, { status: body.sha ? 409 : 422 });
     }
     files.set(url.pathname, { sha: String(++revision), content: body.content });
-    snapshots.set(head(), new Map(files));
     if (controls.failAfterWrite) {
       controls.failAfterWrite = false;
       return new Response(null, { status: 504 });
