@@ -7,8 +7,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://carrot-blood-pressure-api.pages.dev http://127.0.0.1:8787; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#f1f7f3">
   <title>家庭血压本</title>
-  <link rel="stylesheet" href="./style.css?v=3">
-  <script type="module" src="./app.js?v=3"></script>
+  <link rel="stylesheet" href="./style.css?v=4">
+  <script type="module" src="./app.js?v=4"></script>
 </head>
 <body>
   <main>
@@ -63,6 +63,9 @@
           <label for="history-month">月份</label>
           <input id="history-month" type="month" min="2000-01" max="2099-12" placeholder="YYYY-MM" required>
           <button id="refresh" class="secondary" type="button">刷新</button>
+          <label for="history-day">日期</label>
+          <input id="history-day" type="date" min="2000-01-01" max="2099-12-31">
+          <button id="clear-day" class="secondary" type="button">整月</button>
         </div>
         <p id="history-status" class="status" role="status"></p>
         <p id="history-notice" class="status" role="status"></p>
@@ -72,6 +75,7 @@
   </main>
   <dialog id="edit-dialog" aria-labelledby="edit-heading">
     <h2 id="edit-heading">编辑记录</h2>
+    <p class="status">测量时间 <time id="edit-time"></time> <small>北京时间</small></p>
     <form id="edit-form">
       <fieldset id="edit-fields">
         <label for="edit-person">测量人</label>
@@ -88,8 +92,6 @@
         </div>
         <label for="edit-pulse">脉搏 <small>选填</small></label>
         <input id="edit-pulse" name="pulse" type="number" inputmode="numeric" min="1" max="999">
-        <label for="edit-measured-at">测量时间 <small>北京时间</small></label>
-        <input id="edit-measured-at" name="measuredAt" type="datetime-local" min="2000-01-01T00:00" max="2099-12-31T23:59" required>
       </fieldset>
       <div class="edit-actions">
         <button id="edit-cancel" class="secondary" type="button">取消</button>

@@ -1,5 +1,5 @@
 import { hash, passwordPattern, randomToken, tokenPattern, usernamePattern, verifyPassword } from "./security.js";
-import { appendRecord, changeRecord, listRecords, monthOf, monthPattern, normalizeRecord } from "./records.js";
+import { appendRecord, changeRecord, listRecords, monthOf, monthPattern, normalizeRecord, validDay } from "./records.js";
 
 export { FamilyAuth } from "./auth.js";
 
@@ -156,9 +156,11 @@ export default {
         return reply({ ok: true });
       }
       if (path === "/api/records" && method === "GET") {
-        const month = url.searchParams.get("month") ?? monthOf(new Date());
+        const day = url.searchParams.get("date");
+        const month = url.searchParams.get("month") ?? day?.slice(0, 7) ?? monthOf(new Date());
         if (!monthPattern.test(month)) throw new BadRequest();
-        return reply({ records: await listRecords(env, month) });
+        if (day !== null && (!validDay(day) || day.slice(0, 7) !== month)) throw new BadRequest();
+        return reply({ records: await listRecords(env, month, day) });
       }
       if (path === "/api/records" && method === "POST") {
         const record = normalizeRecord(await readJson(request));
@@ -173,6 +175,9 @@ export default {
         const original = normalizeRecord(data?.original);
         const replacement = method === "PATCH" ? normalizeRecord(data?.record) : null;
         if (!original || (method === "PATCH" && replacement?.id !== original.id)) throw new BadRequest();
+        if (replacement && replacement.measuredAt !== original.measuredAt) {
+          return reply({ error: "measurement_time_immutable" }, 400);
+        }
         const result = await changeRecord(env, original, replacement);
         if (result === "retry") return reply({ error: "try_again" }, 503);
         if (result === "conflict") return reply({ error: "record_changed" }, 409);

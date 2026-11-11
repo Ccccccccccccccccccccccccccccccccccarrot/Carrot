@@ -7,17 +7,20 @@ const personInput = byId("person");
 const save = byId("save");
 const saveStatus = byId("save-status");
 const monthInput = byId("history-month");
+const dayInput = byId("history-day");
 const historyList = byId("history-list");
 const historyStatus = byId("history-status");
 const historyNotice = byId("history-notice");
 const editDialog = byId("edit-dialog");
 const editForm = byId("edit-form");
 const editStatus = byId("edit-status");
+const editTime = byId("edit-time");
 const sessionKey = "carrot-bp-session";
 const loginKey = "carrot-bp-login";
 const draftKey = "carrot-bp-pending-record";
 const tabKey = "carrot-bp-tab";
 const monthKey = "carrot-bp-month";
+const dayKey = "carrot-bp-day";
 const monthPattern = /^20\d\d-(0[1-9]|1[0-2])$/;
 const personNames = new Map([["father", "爸爸"], ["mother", "妈妈"]]);
 const timeFormat = new Intl.DateTimeFormat("zh-CN", {
@@ -34,6 +37,12 @@ let changingHistory = false;
 
 function beijingInputTime(date = new Date()) {
   return new Date(date.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16);
+}
+
+function rememberHistoryDate() {
+  sessionStorage.setItem(monthKey, monthInput.value);
+  if (dayInput?.value) sessionStorage.setItem(dayKey, dayInput.value);
+  else sessionStorage.removeItem(dayKey);
 }
 
 function encode(bytes) {
@@ -109,6 +118,8 @@ function showBook() {
   byId("logout").hidden = false;
   const month = sessionStorage.getItem(monthKey);
   monthInput.value = month && monthPattern.test(month) ? month : beijingInputTime().slice(0, 7);
+  const day = sessionStorage.getItem(dayKey);
+  if (dayInput) dayInput.value = day?.startsWith(`${monthInput.value}-`) ? day : "";
   resetForm();
   if (pending) {
     displayPending();
@@ -170,8 +181,10 @@ async function saveRecord(event) {
       return;
     }
     if (!response.ok) throw new Error("Save not confirmed");
-    monthInput.value = beijingInputTime(new Date(pending.measuredAt)).slice(0, 7);
-    sessionStorage.setItem(monthKey, monthInput.value);
+    const savedDay = beijingInputTime(new Date(pending.measuredAt)).slice(0, 10);
+    monthInput.value = savedDay.slice(0, 7);
+    if (dayInput?.value) dayInput.value = savedDay;
+    rememberHistoryDate();
     releaseDraft();
     resetForm();
     saveStatus.textContent = "已保存";
@@ -238,7 +251,16 @@ function openEdit(record) {
   input.systolic.value = record.systolic;
   input.diastolic.value = record.diastolic;
   input.pulse.value = record.pulse ?? "";
-  input.measuredAt.value = beijingInputTime(new Date(record.measuredAt));
+  const time = beijingInputTime(new Date(record.measuredAt));
+  if (editTime) {
+    editTime.dateTime = record.measuredAt;
+    editTime.textContent = time.replace("T", " ");
+  }
+  // Older cached HTML can still contain the previous time input.
+  if (input.measuredAt) {
+    input.measuredAt.value = time;
+    input.measuredAt.readOnly = true;
+  }
   editStatus.textContent = "";
   editStatus.classList.remove("error");
   editDialog.showModal();
@@ -248,17 +270,9 @@ function submitEdit(event) {
   event.preventDefault();
   if (!editing || changingHistory) return;
   const input = editForm.elements;
-  const oldDate = new Date(editing.measuredAt);
-  const date = input.measuredAt.value === beijingInputTime(oldDate)
-    ? oldDate : new Date(`${input.measuredAt.value}+08:00`);
-  if (!Number.isFinite(date.valueOf())) {
-    editStatus.classList.add("error");
-    editStatus.textContent = "请选择有效的测量时间。";
-    return;
-  }
   void changeHistory(editing, {
     id: editing.id,
-    measuredAt: date.toISOString(),
+    measuredAt: editing.measuredAt,
     systolic: input.systolic.valueAsNumber,
     diastolic: input.diastolic.valueAsNumber,
     pulse: input.pulse.value ? input.pulse.valueAsNumber : null,
@@ -269,7 +283,7 @@ function submitEdit(event) {
 async function changeHistory(original, replacement) {
   const status = replacement ? editStatus : historyNotice;
   const controls = ["logout", "new-tab", "history-tab", "history-month", "refresh",
-    "edit-fields", "edit-save", "edit-cancel"].map(byId);
+    "history-day", "clear-day", "edit-fields", "edit-save", "edit-cancel"].map(byId).filter(Boolean);
   changingHistory = true;
   controls.forEach((control) => { control.disabled = true; });
   historyList.querySelectorAll("button").forEach((button) => { button.disabled = true; });
@@ -296,10 +310,7 @@ async function changeHistory(original, replacement) {
       return;
     }
     if (!response.ok) throw new Error("Change not confirmed");
-    if (replacement) {
-      editDialog.close();
-      monthInput.value = beijingInputTime(new Date(replacement.measuredAt)).slice(0, 7);
-    }
+    if (replacement) editDialog.close();
     await loadHistory();
     historyNotice.textContent = replacement ? "已保存修改" : "已删除";
   } catch {
@@ -325,10 +336,16 @@ async function loadHistory() {
     historyStatus.textContent = "请选择有效月份。";
     return;
   }
-  sessionStorage.setItem(monthKey, month);
+  const day = dayInput?.value;
+  if (dayInput && (!dayInput.validity.valid || (day && !day.startsWith(`${month}-`)))) {
+    historyStatus.textContent = "请选择有效日期。";
+    return;
+  }
+  rememberHistoryDate();
   historyStatus.textContent = "正在读取…";
   try {
-    const response = await api(`/api/records?month=${encodeURIComponent(month)}`);
+    const query = new URLSearchParams(day ? { date: day } : { month });
+    const response = await api(`/api/records?${query}`);
     if (request !== historyRequest) return;
     if (response.status === 401) {
       requireLogin();
@@ -338,7 +355,8 @@ async function loadHistory() {
     const { records } = await response.json();
     if (request !== historyRequest) return;
     historyList.replaceChildren(...records.map(renderRecord));
-    historyStatus.textContent = records.length ? `共 ${records.length} 条` : "这个月还没有记录。";
+    historyStatus.textContent = records.length ? `共 ${records.length} 条`
+      : day ? "这一天还没有记录。" : "这个月还没有记录。";
   } catch {
     if (request !== historyRequest) return;
     historyStatus.classList.add("error");
@@ -362,6 +380,7 @@ async function logout() {
   releaseDraft();
   sessionStorage.removeItem(tabKey);
   sessionStorage.removeItem(monthKey);
+  sessionStorage.removeItem(dayKey);
   resetForm();
   saveStatus.textContent = "";
   showWelcome("已退出。需要时可以重新登录。");
@@ -411,7 +430,18 @@ byId("logout").addEventListener("click", logout);
 byId("new-tab").addEventListener("click", () => showTab(false));
 byId("history-tab").addEventListener("click", () => showTab(true));
 byId("refresh").addEventListener("click", loadHistory);
-monthInput.addEventListener("change", loadHistory);
+monthInput.addEventListener("change", () => {
+  if (dayInput) dayInput.value = "";
+  void loadHistory();
+});
+dayInput?.addEventListener("change", () => {
+  if (dayInput.value && dayInput.validity.valid) monthInput.value = dayInput.value.slice(0, 7);
+  void loadHistory();
+});
+byId("clear-day")?.addEventListener("click", () => {
+  dayInput.value = "";
+  void loadHistory();
+});
 byId("measured-at").addEventListener("input", () => { measuredAtEdited = true; });
 form.addEventListener("submit", saveRecord);
 if (editDialog) {
