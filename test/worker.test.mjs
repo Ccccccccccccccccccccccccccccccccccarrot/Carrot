@@ -85,8 +85,10 @@ test("two family sessions see the same encrypted record in the Beijing month", a
   const { api, login, files, revoke, controls } = setup(t);
   const writer = await login("baba");
   const reader = await login("family");
-  const data = record();
+  const data = record({ person: "father" });
   assert.equal((await api("/api/records", { token: writer, data })).status, 201);
+  assert.equal((await api("/api/records", { token: writer, data })).status, 200);
+  assert.equal((await api("/api/records", { token: writer, data: { ...data, person: "mother" } })).status, 409);
   const response = await api("/api/records?month=2026-12", { token: reader });
   assert.deepEqual(await response.json(), { records: [data] });
   assert.deepEqual(await (await api("/api/records?month=2026-11", { token: reader })).json(), { records: [] });
@@ -96,6 +98,7 @@ test("two family sessions see the same encrypted record in the Beijing month", a
   assert.deepEqual(Object.keys(envelope).sort(), ["ciphertext", "nonce", "v"]);
   assert.ok(!JSON.stringify(envelope).includes(data.id));
   assert.equal((await api("/api/records", { token: writer, data: record({ systolic: 0 }) })).status, 400);
+  assert.equal((await api("/api/records", { token: writer, data: record({ person: "other" }) })).status, 400);
   assert.equal((await api("/api/records?month=2026-13", { token: writer })).status, 400);
 
   await revoke("family");
@@ -117,7 +120,7 @@ test("lost save acknowledgement, duplicate submission and concurrent writes do n
   assert.equal((await api("/api/records", { token: writer, data: { ...first, pulse: 72 } })).status, 409);
 
   const left = record({ measuredAt: "2026-12-01T00:12:00.000Z" });
-  const right = record({ measuredAt: "2026-12-01T01:12:00.000Z", pulse: 68 });
+  const right = record({ measuredAt: "2026-12-01T01:12:00.000Z", pulse: 68, person: "mother" });
   controls.conflicts = 1;
   const results = await Promise.all([
     api("/api/records", { token: writer, data: left }),

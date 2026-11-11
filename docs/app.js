@@ -3,6 +3,7 @@ import { workerOrigin } from "./config.js";
 const byId = (id) => document.getElementById(id);
 const form = byId("record-form");
 const fields = byId("record-fields");
+const personInput = byId("person");
 const save = byId("save");
 const saveStatus = byId("save-status");
 const monthInput = byId("history-month");
@@ -14,6 +15,7 @@ const draftKey = "carrot-bp-pending-record";
 const tabKey = "carrot-bp-tab";
 const monthKey = "carrot-bp-month";
 const monthPattern = /^20\d\d-(0[1-9]|1[0-2])$/;
+const personNames = new Map([["father", "爸爸"], ["mother", "妈妈"]]);
 const timeFormat = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
 });
@@ -85,6 +87,7 @@ function resetForm() {
 }
 
 function displayPending() {
+  if (personInput) personInput.value = pending.person ?? "";
   byId("systolic").value = pending.systolic;
   byId("diastolic").value = pending.diastolic;
   byId("pulse").value = pending.pulse ?? "";
@@ -136,6 +139,7 @@ async function saveRecord(event) {
       diastolic: byId("diastolic").valueAsNumber,
       pulse: byId("pulse").value ? byId("pulse").valueAsNumber : null,
       measuredAt: measuredAt.toISOString(),
+      person: personInput?.value,
     };
     sessionStorage.setItem(draftKey, JSON.stringify(pending));
   }
@@ -178,14 +182,19 @@ async function saveRecord(event) {
 
 function renderRecord(record) {
   const item = document.createElement("li");
+  const metadata = document.createElement("div");
+  metadata.className = "record-meta";
+  const person = document.createElement("span");
+  person.textContent = personNames.get(record.person) ?? "未标注";
   const timestamp = document.createElement("time");
   timestamp.dateTime = record.measuredAt;
   timestamp.textContent = timeFormat.format(new Date(record.measuredAt));
+  metadata.append(person, timestamp);
   const readings = document.createElement("strong");
   readings.textContent = `${record.systolic} / ${record.diastolic}`;
   const unit = document.createElement("span");
   unit.textContent = record.pulse ? `mmHg · 脉搏 ${record.pulse} 次/分钟` : "mmHg";
-  item.append(timestamp, readings, unit);
+  item.append(metadata, readings, unit);
   return item;
 }
 

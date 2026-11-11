@@ -28,10 +28,14 @@ export function normalizeRecord(value) {
   const isReading = (number) => Number.isInteger(number) && number >= 1 && number <= 999;
   if (!isReading(value.systolic) || !isReading(value.diastolic) ||
       (value.pulse != null && !isReading(value.pulse))) return null;
-  return {
+  if (value.person !== undefined && value.person !== "father" && value.person !== "mother") return null;
+  const record = {
     id: value.id, measuredAt: value.measuredAt, systolic: value.systolic,
     diastolic: value.diastolic, pulse: value.pulse ?? null,
   };
+  // Older pages and pending submissions can still send records without a person.
+  if (value.person !== undefined) record.person = value.person;
+  return record;
 }
 
 function requestGitHub(path, token, options = {}) {
