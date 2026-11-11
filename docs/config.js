@@ -1,1 +1,1 @@
-export const workerOrigin = "https://carrot-blood-pressure.carrot-blood-pressure.workers.dev";
+export const workerOrigin = "https://carrot-blood-pressure-api.pages.dev";
