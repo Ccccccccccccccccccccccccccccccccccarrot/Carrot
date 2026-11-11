@@ -1,2 +1,1 @@
-// Replace this value with the address printed by npm run deploy before publishing Pages.
-export const workerOrigin = "";
+export const workerOrigin = "https://carrot-blood-pressure.carrot-blood-pressure.workers.dev";
