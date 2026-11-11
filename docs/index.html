@@ -7,8 +7,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://carrot-blood-pressure-api.pages.dev http://127.0.0.1:8787; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#f1f7f3">
   <title>家庭血压本</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./app.js"></script>
+  <link rel="stylesheet" href="./style.css?v=2">
+  <script type="module" src="./app.js?v=2"></script>
 </head>
 <body>
   <main>
@@ -35,6 +35,12 @@
         <h2 id="new-heading">记血压</h2>
         <form id="record-form">
           <fieldset id="record-fields">
+            <label for="person">测量人</label>
+            <select id="person" name="person" required>
+              <option value="" selected disabled>请选择测量人</option>
+              <option value="father">爸爸</option>
+              <option value="mother">妈妈</option>
+            </select>
             <div class="readings">
               <label for="systolic">高压 <small>mmHg</small></label>
               <label for="diastolic">低压 <small>mmHg</small></label>
