@@ -1,0 +1,7 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "carrot-blood-pressure-api",
+  "compatibility_date": "2025-11-01",
+  "pages_build_output_dir": "./public",
+  "services": [{ "binding": "CARROT_API", "service": "carrot-blood-pressure" }]
+}

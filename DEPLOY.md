@@ -29,8 +29,15 @@ npm.cmd run deploy -- --secrets-file carrot-credentials-secrets.json
 
 ## 发布和复核
 
-1. 把 `docs/config.js` 里的 `workerOrigin` 设为 Wrangler 输出的 `https://…workers.dev` 源地址，末尾省去 `/`。发布到 `main` 后，在 **Settings → Pages** 选 **Deploy from a branch**、`main`、`/docs`。若本账号已经自定义 Pages 域名，需要把 `wrangler.jsonc` 中的 `PAGES_URL` 同步改成最终页面 URL，再重新部署 Worker。
-2. 先在你爸手机的 Wi‑Fi 和移动流量下，用虚拟记录验证登录、保存、回看。另一台手机用独立账号读同一条。测试记录可选一个历史月份，便于上线前从 `records` 当前分支移除相应的演示文件。
-3. 无账号时请求 Worker 的 `/api/records` 应得到 `401`。公开 `records` 分支下的记录文件只应出现 `v`、`nonce` 和 `ciphertext`。访问 Pages 上的 `/Carrot/ReflectiveDLL.dll` 应返回 `404`。
+1. 用 Cloudflare Pages 提供登录和 API 的 HTTPS 地址。`pages-api/` 通过 Service Binding 将请求转给现有 Worker。项目已创建，更新时在仓库根目录运行下面的部署命令。若在新 Cloudflare 账号重建，先执行项目创建命令，并在 `pages-api/wrangler.jsonc` 中设置实际的项目名和 Worker 名。
+
+   ```powershell
+   npm.cmd exec -- wrangler pages project create carrot-blood-pressure-api --production-branch main --force
+   npm.cmd exec -- wrangler pages deploy --cwd pages-api --branch main
+   ```
+
+2. 将 `docs/config.js` 的 `workerOrigin` 和 `docs/index.html` 的 `connect-src` 设置为 Cloudflare Pages 的生产源地址 `https://carrot-blood-pressure-api.pages.dev`。在 GitHub **Settings → Pages** 选择 **Deploy from a branch**、`main`、`/docs`。如果 GitHub Pages 的网址变了，把根目录 `wrangler.jsonc` 的 `PAGES_URL` 同步改为家人使用的完整页面 URL，再重新部署 Worker。
+3. 先在你爸手机的 Wi‑Fi 和移动流量下，用虚拟记录验证登录、保存、回看。另一台手机用独立账号读同一条。测试记录可选一个历史月份，便于上线前从 `records` 当前分支移除相应的演示文件。
+4. 无账号时请求 Cloudflare Pages 的 `/api/records` 应得到 `401`。公开 `records` 分支下的记录文件只应出现 `v`、`nonce` 和 `ciphertext`。访问 GitHub Pages 上的 `/Carrot/ReflectiveDLL.dll` 应返回 `404`。
 
 需要撤销访问时，在本地部署配置的 `FAMILY_ACCOUNTS` JSON 字符串中删除该用户名，再重新部署。保留同一份 `RECORDS_KEY`，其余账号的口令和历史继续可用。Worker 每次请求都重新核对名单。
