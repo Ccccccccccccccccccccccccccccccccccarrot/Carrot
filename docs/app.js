@@ -9,6 +9,10 @@ const saveStatus = byId("save-status");
 const monthInput = byId("history-month");
 const historyList = byId("history-list");
 const historyStatus = byId("history-status");
+const historyNotice = byId("history-notice");
+const editDialog = byId("edit-dialog");
+const editForm = byId("edit-form");
+const editStatus = byId("edit-status");
 const sessionKey = "carrot-bp-session";
 const loginKey = "carrot-bp-login";
 const draftKey = "carrot-bp-pending-record";
@@ -25,6 +29,8 @@ let pending = JSON.parse(sessionStorage.getItem(draftKey) ?? "null");
 let saving = false;
 let historyRequest = 0;
 let measuredAtEdited = false;
+let editing = null;
+let changingHistory = false;
 
 function beijingInputTime(date = new Date()) {
   return new Date(date.valueOf() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16);
@@ -40,6 +46,7 @@ function randomToken() {
 
 function showWelcome(message, canLogin = true) {
   historyRequest += 1;
+  if (editDialog?.open) editDialog.close();
   historyList.replaceChildren();
   byId("book").hidden = true;
   byId("logout").hidden = true;
@@ -182,6 +189,7 @@ async function saveRecord(event) {
 
 function renderRecord(record) {
   const item = document.createElement("li");
+  const summary = document.createElement("div");
   const metadata = document.createElement("div");
   metadata.className = "record-meta";
   const person = document.createElement("span");
@@ -194,13 +202,123 @@ function renderRecord(record) {
   readings.textContent = `${record.systolic} / ${record.diastolic}`;
   const unit = document.createElement("span");
   unit.textContent = record.pulse ? `mmHg · 脉搏 ${record.pulse} 次/分钟` : "mmHg";
-  item.append(metadata, readings, unit);
+  summary.append(metadata, readings, unit);
+  item.append(summary);
+  if (editDialog) {
+    const actions = document.createElement("div");
+    actions.className = "record-actions";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "secondary";
+    edit.textContent = "编辑";
+    edit.addEventListener("click", () => openEdit(record));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "secondary danger";
+    remove.textContent = "删除";
+    remove.addEventListener("click", () => {
+      if (saving || changingHistory) return;
+      const label = personNames.get(record.person) ?? "未标注";
+      if (window.confirm(`确定删除这条记录？\n${label} · ${timestamp.textContent} · ${readings.textContent} mmHg`)) {
+        void changeHistory(record, null);
+      }
+    });
+    actions.append(edit, remove);
+    item.append(actions);
+  }
   return item;
+}
+
+function openEdit(record) {
+  if (saving || changingHistory) return;
+  editing = record;
+  const input = editForm.elements;
+  input.person.value = record.person ?? "";
+  input.person.options[0].disabled = Boolean(record.person);
+  input.systolic.value = record.systolic;
+  input.diastolic.value = record.diastolic;
+  input.pulse.value = record.pulse ?? "";
+  input.measuredAt.value = beijingInputTime(new Date(record.measuredAt));
+  editStatus.textContent = "";
+  editStatus.classList.remove("error");
+  editDialog.showModal();
+}
+
+function submitEdit(event) {
+  event.preventDefault();
+  if (!editing || changingHistory) return;
+  const input = editForm.elements;
+  const oldDate = new Date(editing.measuredAt);
+  const date = input.measuredAt.value === beijingInputTime(oldDate)
+    ? oldDate : new Date(`${input.measuredAt.value}+08:00`);
+  if (!Number.isFinite(date.valueOf())) {
+    editStatus.classList.add("error");
+    editStatus.textContent = "请选择有效的测量时间。";
+    return;
+  }
+  void changeHistory(editing, {
+    id: editing.id,
+    measuredAt: date.toISOString(),
+    systolic: input.systolic.valueAsNumber,
+    diastolic: input.diastolic.valueAsNumber,
+    pulse: input.pulse.value ? input.pulse.valueAsNumber : null,
+    person: input.person.value || undefined,
+  });
+}
+
+async function changeHistory(original, replacement) {
+  const status = replacement ? editStatus : historyNotice;
+  const controls = ["logout", "new-tab", "history-tab", "history-month", "refresh",
+    "edit-fields", "edit-save", "edit-cancel"].map(byId);
+  changingHistory = true;
+  controls.forEach((control) => { control.disabled = true; });
+  historyList.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+  status.classList.remove("error");
+  status.textContent = replacement ? "正在保存修改…" : "正在删除…";
+  try {
+    const response = await api("/api/records", replacement
+      ? { method: "PATCH", data: { original, record: replacement } }
+      : { method: "DELETE", data: { original } });
+    if (response.status === 401) {
+      requireLogin();
+      return;
+    }
+    if (response.status === 409) {
+      if (editDialog.open) editDialog.close();
+      await loadHistory();
+      historyNotice.classList.add("error");
+      historyNotice.textContent = "这条记录已被更新或删除，请查看最新的历史。";
+      return;
+    }
+    if (response.status === 400 && replacement) {
+      status.classList.add("error");
+      status.textContent = "请检查输入后重新保存。";
+      return;
+    }
+    if (!response.ok) throw new Error("Change not confirmed");
+    if (replacement) {
+      editDialog.close();
+      monthInput.value = beijingInputTime(new Date(replacement.measuredAt)).slice(0, 7);
+    }
+    await loadHistory();
+    historyNotice.textContent = replacement ? "已保存修改" : "已删除";
+  } catch {
+    status.classList.add("error");
+    status.textContent = replacement ? "暂时无法确认修改，请重试。" : "暂时无法确认删除，请重试。";
+  } finally {
+    changingHistory = false;
+    controls.forEach((control) => { control.disabled = false; });
+    historyList.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+  }
 }
 
 async function loadHistory() {
   const request = ++historyRequest;
   historyList.replaceChildren();
+  if (historyNotice) {
+    historyNotice.textContent = "";
+    historyNotice.classList.remove("error");
+  }
   historyStatus.classList.remove("error");
   const month = monthInput.value;
   if (!monthPattern.test(month)) {
@@ -296,4 +414,11 @@ byId("refresh").addEventListener("click", loadHistory);
 monthInput.addEventListener("change", loadHistory);
 byId("measured-at").addEventListener("input", () => { measuredAtEdited = true; });
 form.addEventListener("submit", saveRecord);
+if (editDialog) {
+  editForm.addEventListener("submit", submitEdit);
+  byId("edit-cancel").addEventListener("click", () => editDialog.close());
+  editDialog.addEventListener("cancel", (event) => {
+    if (changingHistory) event.preventDefault();
+  });
+}
 initialize().catch(() => showWelcome("页面暂时无法打开，请刷新重试。"));
