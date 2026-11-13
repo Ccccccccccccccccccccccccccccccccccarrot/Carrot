@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=8">
-  <script type="module" src="./app.js?v=8"></script>
+  <link rel="stylesheet" href="./style.css?v=9">
+  <script type="module" src="./app.js?v=9"></script>
 </head>
 <body>
   <main>
@@ -69,24 +69,6 @@
       </section>
 
       <div id="history-panel" hidden>
-        <section class="card history-calendar" aria-labelledby="history-month-title">
-          <div class="history-card-head">
-            <h2 id="history-month-title" aria-live="polite"></h2>
-            <div class="month-actions" aria-label="切换月份">
-              <button id="previous-month" class="secondary" type="button" aria-label="上个月"><i aria-hidden="true"></i></button>
-              <button id="next-month" class="secondary" type="button" aria-label="下个月"><i aria-hidden="true"></i></button>
-            </div>
-          </div>
-          <div class="history-weekdays" aria-hidden="true">
-            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
-          </div>
-          <div id="history-days" aria-label="本月日期"></div>
-          <div class="calendar-footer">
-            <p class="calendar-key"><span aria-hidden="true"></span>有测量记录</p>
-            <button id="refresh" class="secondary" type="button">刷新</button>
-          </div>
-        </section>
-
         <section class="card history-trend" aria-labelledby="trend-title">
           <div class="history-card-head">
             <div>
@@ -106,6 +88,24 @@
           <canvas id="trend-chart" role="img" aria-label="高压、低压和脉搏的月度趋势图" aria-describedby="trend-description trend-point"></canvas>
           <p id="trend-empty" class="history-empty" hidden></p>
           <p id="trend-point" class="trend-point" aria-live="polite"></p>
+        </section>
+
+        <section class="card history-calendar" aria-labelledby="history-month-title">
+          <div class="history-card-head">
+            <h2 id="history-month-title" aria-live="polite"></h2>
+            <div class="month-actions" aria-label="切换月份">
+              <button id="previous-month" class="secondary" type="button" aria-label="上个月"><i aria-hidden="true"></i></button>
+              <button id="next-month" class="secondary" type="button" aria-label="下个月"><i aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <div class="history-weekdays" aria-hidden="true">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+          </div>
+          <div id="history-days" aria-label="本月日期"></div>
+          <div class="calendar-footer">
+            <p class="calendar-key"><span aria-hidden="true"></span>有测量记录</p>
+            <button id="refresh" class="secondary" type="button">刷新</button>
+          </div>
         </section>
 
         <section class="card history-day-card" aria-labelledby="history-day-title">
