@@ -180,12 +180,12 @@ export default {
         const month = url.searchParams.get("month") ?? day?.slice(0, 7) ?? monthOf(new Date());
         if (!monthPattern.test(month)) throw new BadRequest();
         if (day !== null && (!validDay(day) || day.slice(0, 7) !== month)) throw new BadRequest();
-        return reply({ records: await listRecords(env, month, day) });
+        return reply({ records: await listRecords(env, account.user, month, day) });
       }
       if (path === "/api/records" && method === "POST") {
         const record = normalizeRecord(await readJson(request));
         if (!record) throw new BadRequest();
-        const result = await appendRecord(env, record);
+        const result = await appendRecord(env, account.user, record);
         if (result === "retry") return reply({ error: "try_again" }, 503);
         if (result === "id-conflict") return reply({ error: "id_conflict" }, 409);
         return reply({ record }, result === "created" ? 201 : 200);
@@ -198,7 +198,7 @@ export default {
         if (replacement && replacement.measuredAt !== original.measuredAt) {
           return reply({ error: "measurement_time_immutable" }, 400);
         }
-        const result = await changeRecord(env, original, replacement);
+        const result = await changeRecord(env, account.user, original, replacement);
         if (result === "retry") return reply({ error: "try_again" }, 503);
         if (result === "conflict") return reply({ error: "record_changed" }, 409);
         return reply({ ok: true });

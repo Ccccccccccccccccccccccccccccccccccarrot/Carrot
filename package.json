@@ -8,6 +8,7 @@
     "dev": "wrangler dev --port 8787",
     "deploy": "wrangler deploy",
     "credentials": "node scripts/credentials.mjs",
+    "add-account": "node scripts/add-account.mjs",
     "app-key": "node scripts/app-key.mjs"
   },
   "devDependencies": {
