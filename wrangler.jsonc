@@ -7,6 +7,7 @@
   "preview_urls": false,
   "observability": { "enabled": false },
   "vars": {
+    "LEGACY_RECORDS_USER": "family",
     "PAGES_URL": "https://ccccccccccccccccccccccccccccccccccarrot.github.io/Carrot/"
   },
   "durable_objects": {

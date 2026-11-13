@@ -102,9 +102,9 @@ test("in-app login works only from the configured site and still honors revocati
   assert.equal((await api("/api/records", { token })).status, 401);
 });
 
-test("two family sessions see the same encrypted record in the Beijing month", async (t) => {
+test("two sessions for the same account see the same encrypted record in the Beijing month", async (t) => {
   const { api, login, files, revoke, controls } = setup(t);
-  const writer = await login("baba");
+  const writer = await login("family");
   const reader = await login("family");
   const data = record({ person: "father" });
   assert.equal((await api("/api/records", { token: writer, data })).status, 201);
@@ -125,15 +125,61 @@ test("two family sessions see the same encrypted record in the Beijing month", a
   await revoke("family");
   assert.equal((await api("/api/records", { token: reader })).status, 401);
   assert.equal((await api("/api/records", { token: reader, data: record() })).status, 401);
-  assert.equal((await api("/api/records?month=2026-12", { token: writer })).status, 200);
+  assert.equal((await api("/api/records?month=2026-12", { token: writer })).status, 401);
+});
+
+test("a missing records branch is reported as unavailable", async (t) => {
+  const { api, login, controls } = setup(t);
+  const writer = await login("family");
   controls.branchExists = false;
   assert.equal((await api("/api/records?month=2026-11", { token: writer })).status, 503);
+});
+
+test("accounts cannot read or modify each other's records, including with forged input", async (t) => {
+  const { api, login, files } = setup(t);
+  const family = await login("family");
+  const familySecond = await login("family");
+  const relative = await login("relative");
+  const original = record({ person: "father" });
+  const other = record({ person: "mother", systolic: 121 });
+  const month = "2026-12";
+  const list = async (token, query = `month=${month}`) =>
+    (await (await api(`/api/records?${query}`, { token })).json()).records;
+
+  assert.equal((await api("/api/records", { token: family, data: original })).status, 201);
+  assert.deepEqual(await list(familySecond), [original]);
+  assert.deepEqual(await list(relative), []);
+  assert.deepEqual(await list(relative, `month=${month}&username=family`), []);
+  const replacement = { ...original, systolic: 120 };
+  assert.equal((await api("/api/records", { token: relative, method: "PATCH",
+    data: { original, record: replacement, username: "family" } })).status, 409);
+  assert.equal((await api("/api/records", { token: relative, method: "DELETE",
+    data: { original, username: "family" } })).status, 409);
+  assert.equal((await api("/api/records", { token: relative, data: { ...other, username: "family" } })).status, 201);
+  assert.deepEqual(await list(family), [original]);
+  assert.deepEqual(await list(relative), [other]);
+  assert.equal((await api("/api/records", { token: family, method: "DELETE", data: { original: other } })).status, 409);
+  assert.equal((await api("/api/records", { token: family, method: "PATCH",
+    data: { original: other, record: { ...other, systolic: 125 } } })).status, 409);
+  const paths = [...files.keys()];
+  assert.ok(paths.some((path) => path.endsWith(`/bp/${month}.enc.json`)));
+  assert.ok(paths.some((path) => /\/bp\/accounts\/[A-Za-z0-9_-]{43}\/2026-12\.enc\.json$/.test(path)));
+  assert.ok(paths.every((path) => !path.includes("relative") && !path.includes("family")));
+
+  // A ciphertext copied from another account cannot be authenticated in this account's namespace.
+  const legacyPath = paths.find((path) => path.endsWith(`/bp/${month}.enc.json`));
+  const relativePath = paths.find((path) => path.includes("/bp/accounts/"));
+  const relativeFile = files.get(relativePath);
+  files.set(relativePath, { ...relativeFile, content: files.get(legacyPath).content });
+  assert.equal((await api(`/api/records?month=${month}`, { token: relative })).status, 503);
+  files.set(relativePath, relativeFile);
+  assert.deepEqual(await list(relative), [other]);
 });
 
 test("lost save acknowledgement, duplicate submission and concurrent writes do not lose records", async (t) => {
   const { api, login, controls } = setup(t);
   const writer = await login("baba");
-  const second = await login("family");
+  const second = await login("baba");
   const first = record();
   controls.failAfterWrite = true;
   assert.equal((await api("/api/records", { token: writer, data: first })).status, 503);

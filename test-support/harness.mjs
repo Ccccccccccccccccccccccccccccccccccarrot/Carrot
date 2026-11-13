@@ -11,7 +11,11 @@ const repo = "/repos/Ccccccccccccccccccccccccccccccccccarrot/Carrot";
 export function createHarness({ pagesUrl = "https://carrot.test/Carrot/", port } = {}) {
   const files = new Map();
   const controls = { failAfterWrite: false, branchExists: true, conflicts: 0, conflictResponses: 0 };
-  const passwords = { baba: randomBytes(16).toString("base64url"), family: randomBytes(16).toString("base64url") };
+  const passwords = {
+    baba: randomBytes(16).toString("base64url"),
+    family: randomBytes(16).toString("base64url"),
+    relative: randomBytes(16).toString("base64url"),
+  };
   const pepper = randomBytes(32);
   const accounts = Object.fromEntries(Object.entries(passwords).map(([name, password]) => [
     name, createHmac("sha256", pepper).update(`${name}\0${password}`).digest("base64url"),
@@ -71,6 +75,7 @@ export function createHarness({ pagesUrl = "https://carrot.test/Carrot/", port }
     port,
     bindings: {
       PAGES_URL: pagesUrl,
+      LEGACY_RECORDS_USER: "family",
       PASSWORD_PEPPER: pepper.toString("base64url"),
       FAMILY_ACCOUNTS: JSON.stringify(accounts),
       RECORDS_KEY: randomBytes(32).toString("base64url"),

@@ -10,7 +10,7 @@ npm.cmd test
 npm.cmd run preview
 ```
 
-打开终端给出的地址，用其中两个演示账号在不同浏览器或无痕窗口登录。一边保存，另一边点「看历史」。
+打开终端给出的地址，在两个浏览器或无痕窗口登录同一个演示账号。一边保存，另一边点「看历史」。使用另一个演示账号登录，应看不到第一账号的记录。
 
 再断网新增或编辑一条虚拟记录，确认页面显示「待同步」。关闭再打开仍能看到本机记录；恢复联网后，它会自动上传。另一台设备重新打开页面或点「刷新」后，应能看到最新数据。
 
@@ -46,7 +46,13 @@ npm.cmd run deploy -- --secrets-file carrot-credentials-secrets.json
    ```
 
 2. 将 `docs/config.js` 的 `workerOrigin` 和 `docs/index.html` 的 `connect-src` 设置为 Cloudflare Pages 的生产源地址 `https://carrot-blood-pressure-api.pages.dev`。在 GitHub **Settings → Pages** 选择 **Deploy from a branch**、`main`、`/docs`。如果 GitHub Pages 的网址变了，把根目录 `wrangler.jsonc` 的 `PAGES_URL` 同步改为家人使用的完整页面 URL，再重新部署 Worker。
-3. 先在你爸手机的 Wi‑Fi 和移动流量下，用虚拟记录验证登录、保存、回看。另一台手机用独立账号读同一条。测试记录可选一个历史月份，便于上线前从 `records` 当前分支移除相应的演示文件。
+3. 先在你爸手机的 Wi‑Fi 和移动流量下，用虚拟记录验证登录、保存、回看。另一台手机用同一账号读取同一条记录。测试记录可选一个历史月份，便于上线前从 `records` 当前分支移除相应的演示文件。
 4. 无账号时请求 Cloudflare Pages 的 `/api/records` 应得到 `401`。公开 `records` 分支下的记录文件只应出现 `v`、`nonce` 和 `ciphertext`。访问 GitHub Pages 上的 `/Carrot/ReflectiveDLL.dll` 应返回 `404`。
 
 需要撤销访问时，在本地部署配置的 `FAMILY_ACCOUNTS` JSON 字符串中删除该用户名，再重新部署。保留同一份 `RECORDS_KEY`，其余账号的口令和历史继续可用。Worker 每次请求都重新核对名单。
+
+## 新增隔离账号
+
+同一账号在不同设备共享记录，不同账号的云端记录隔离。现有历史由 `wrangler.jsonc` 的 `LEGACY_RECORDS_USER` 指定给原账号，修改该配置会改变旧文件的归属。
+
+在仓库根目录运行 `npm.cmd run add-account -- 账号名`，脚本会生成新账号凭据文件及待部署密钥文件。确认保管好两份文件后，使用 `npm.cmd run deploy -- --secrets-file carrot-credentials-secrets.pending.json` 部署。部署成功后，应将待部署文件安全备份并替换本机原来的 `carrot-credentials-secrets.json`，避免后续部署丢失新账号。账号名固定关联其数据，`RECORDS_KEY` 同时用于加密及确定新账号的数据目录，不能随意更换。

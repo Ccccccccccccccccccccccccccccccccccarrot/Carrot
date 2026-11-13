@@ -1,4 +1,4 @@
-import { base64, base64url, decryptRecords, encryptRecords, unbase64, unbase64url } from "./security.js";
+import { base64, base64url, decryptRecords, encryptRecords, hash, unbase64, unbase64url, usernamePattern } from "./security.js";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -120,12 +120,25 @@ async function recordsKey(env) {
   return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-function monthFile(month) {
-  return `bp/${month}.enc.json`;
+async function storageScope(env, username) {
+  if (!usernamePattern.test(env.LEGACY_RECORDS_USER ?? "") || !usernamePattern.test(username)) {
+    throw new Error("Invalid account storage configuration");
+  }
+  if (username === env.LEGACY_RECORDS_USER) return { directory: "bp", context: "" };
+  const id = await hash(`${env.RECORDS_KEY}\0${username}`);
+  return { directory: `bp/accounts/${id}`, context: id };
 }
 
-async function readMonth(env, key, month) {
-  const response = await githubFetch(env, `${repo}/contents/${monthFile(month)}?ref=${branch}`);
+function monthFile(scope, month) {
+  return `${scope.directory}/${month}.enc.json`;
+}
+
+function encryptionContext(scope, month) {
+  return scope.context ? `${scope.context}:${month}` : month;
+}
+
+async function readMonth(env, key, scope, month) {
+  const response = await githubFetch(env, `${repo}/contents/${monthFile(scope, month)}?ref=${branch}`);
   if (response.status === 404) {
     if (!(await githubFetch(env, branchRef)).ok) throw new Error("Records branch unavailable");
     return { records: [] };
@@ -136,13 +149,14 @@ async function readMonth(env, key, month) {
     throw new Error("Invalid repository file response");
   }
   const envelope = JSON.parse(decoder.decode(unbase64(content)));
-  const records = await decryptRecords(key, month, envelope);
+  const records = await decryptRecords(key, encryptionContext(scope, month), envelope);
   if (!Array.isArray(records)) throw new Error("Invalid records file");
   return { sha, records };
 }
 
-export async function listRecords(env, month, day) {
-  const { records } = await readMonth(env, await recordsKey(env), month);
+export async function listRecords(env, username, month, day) {
+  const scope = await storageScope(env, username);
+  const { records } = await readMonth(env, await recordsKey(env), scope, month);
   return records
     .filter((record) => !record.removed && (day == null || dayOf(new Date(record.measuredAt)) === day))
     .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt));
@@ -152,17 +166,17 @@ function sameRecord(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-async function encryptedContents(key, month, records) {
-  const envelope = await encryptRecords(key, month, records);
+async function encryptedContents(key, scope, month, records) {
+  const envelope = await encryptRecords(key, encryptionContext(scope, month), records);
   return base64(encoder.encode(JSON.stringify(envelope)));
 }
 
-async function writeMonth(env, key, month, sha, records) {
-  const response = await githubFetch(env, `${repo}/contents/${monthFile(month)}`, {
+async function writeMonth(env, key, scope, month, sha, records) {
+  const response = await githubFetch(env, `${repo}/contents/${monthFile(scope, month)}`, {
     method: "PUT",
     body: JSON.stringify({
       message: "Update encrypted records", branch, sha,
-      content: await encryptedContents(key, month, records),
+      content: await encryptedContents(key, scope, month, records),
     }),
   });
   if (response.ok) return true;
@@ -170,33 +184,35 @@ async function writeMonth(env, key, month, sha, records) {
   throw new Error("GitHub write failed");
 }
 
-export async function appendRecord(env, record) {
+export async function appendRecord(env, username, record) {
   const month = monthOf(new Date(record.measuredAt));
   const key = await recordsKey(env);
+  const scope = await storageScope(env, username);
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const { sha, records } = await readMonth(env, key, month);
+    const { sha, records } = await readMonth(env, key, scope, month);
     const existing = records.find((item) => item.id === record.id);
     if (existing) {
       return sameRecord(existing, record) ? "duplicate" : "id-conflict";
     }
-    if (await writeMonth(env, key, month, sha, [...records, record])) return "created";
+    if (await writeMonth(env, key, scope, month, sha, [...records, record])) return "created";
   }
   return "retry";
 }
 
-export async function changeRecord(env, original, replacement) {
+export async function changeRecord(env, username, original, replacement) {
   const month = monthOf(new Date(original.measuredAt));
   const key = await recordsKey(env);
+  const scope = await storageScope(env, username);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const { sha, records } = await readMonth(env, key, month);
+    const { sha, records } = await readMonth(env, key, scope, month);
     const index = records.findIndex((item) => item.id === original.id);
     const current = records[index];
     if (replacement ? sameRecord(current, replacement) : current?.removed === "deleted") return "ok";
     if (!sameRecord(current, original)) return "conflict";
     // Keep the ID reserved so a retry of the original creation cannot restore it.
     records[index] = replacement ?? { id: original.id, removed: "deleted" };
-    if (await writeMonth(env, key, month, sha, records)) return "ok";
+    if (await writeMonth(env, key, scope, month, sha, records)) return "ok";
   }
   return "retry";
 }
