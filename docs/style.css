@@ -3,6 +3,9 @@
   font: 18px/1.45 system-ui, sans-serif;
   color: #19382e;
   background: #f1f7f3;
+  --trend-systolic: #b44538;
+  --trend-diastolic: #087be6;
+  --trend-pulse: #df6900;
 }
 
 * { box-sizing: border-box; }
@@ -87,9 +90,9 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
 }
 .trend-legend small { font-size: .69rem; }
 .trend-legend i { width: 16px; border-top: 3px solid; border-radius: 2px; }
-.trend-legend .high i { border-color: #b44538; }
-.trend-legend .low i { border-color: #286790; }
-.trend-legend .pulse i { border-color: #26775c; border-top-style: dashed; }
+.trend-legend .high i { border-color: var(--trend-systolic); }
+.trend-legend .low i { border-color: var(--trend-diastolic); }
+.trend-legend .pulse i { border-color: var(--trend-pulse); border-top-style: dashed; }
 #trend-chart { display: block; width: 100%; height: 190px; cursor: crosshair; }
 .trend-point { margin-top: .2rem; }
 @media (hover: hover) {
