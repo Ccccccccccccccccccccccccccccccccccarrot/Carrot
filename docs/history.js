@@ -1,7 +1,7 @@
 const series = [
-  { key: "systolic", color: "#b44538", label: "高压", unit: "mmHg" },
-  { key: "diastolic", color: "#286790", label: "低压", unit: "mmHg" },
-  { key: "pulse", color: "#26775c", label: "脉搏", unit: "次/分" },
+  { key: "systolic", label: "高压", unit: "mmHg" },
+  { key: "diastolic", label: "低压", unit: "mmHg" },
+  { key: "pulse", label: "脉搏", unit: "次/分" },
 ];
 const dateFormat = new Intl.DateTimeFormat("zh-CN", {
   month: "long", day: "numeric", weekday: "short", timeZone: "UTC",
@@ -83,7 +83,9 @@ function paintTrend(chart, averages, selectedDay, lastDay) {
 
   context.lineJoin = "round";
   context.lineCap = "round";
-  for (const { key, color } of series) {
+  const chartStyle = getComputedStyle(chart);
+  for (const { key } of series) {
+    const color = chartStyle.getPropertyValue(`--trend-${key}`).trim();
     context.strokeStyle = color;
     context.fillStyle = color;
     context.lineWidth = 2.3;
