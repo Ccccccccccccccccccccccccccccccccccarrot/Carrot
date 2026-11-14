@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 
 const rateWindow = 15 * 60_000;
-const sessionLifetime = 24 * 60 * 60_000;
+// Keep the existing numeric expiry field for older app versions.
+const sessionExpiry = 253402300799999;
 const codeLifetime = 2 * 60_000;
 
 export class FamilyAuth extends DurableObject {
@@ -44,7 +45,7 @@ export class FamilyAuth extends DurableObject {
 
   issueSession(hash, user, verifier) {
     const now = Date.now();
-    const expiresAt = now + sessionLifetime;
+    const expiresAt = sessionExpiry;
     this.sql.exec("DELETE FROM sessions WHERE expires <= ?", now);
     this.sql.exec("INSERT INTO sessions VALUES (?, ?, ?, ?)", hash, user, verifier, expiresAt);
     return expiresAt;
