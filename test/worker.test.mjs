@@ -67,7 +67,8 @@ test("allowlist, CORS, one-time code binding, logout and unauthenticated request
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Cache-Control"), "no-store");
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), pagesOrigin);
-  const { session } = await response.json();
+  const { session, expiresAt } = await response.json();
+  assert.equal(expiresAt, Date.UTC(9999, 11, 31, 23, 59, 59, 999));
   assert.equal((await exchange(code, verifier)).status, 401);
   assert.equal((await api("/auth/logout", { method: "POST", token: session })).status, 200);
   assert.equal((await api("/api/records", { token: session })).status, 401);
@@ -94,7 +95,7 @@ test("in-app login works only from the configured site and still honors revocati
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), pagesOrigin);
   const { session: token, username, expiresAt } = await response.json();
   assert.equal(username, data.username);
-  assert.ok(expiresAt > Date.now() && expiresAt <= Date.now() + 24 * 60 * 60 * 1000);
+  assert.equal(expiresAt, Date.UTC(9999, 11, 31, 23, 59, 59, 999));
   assert.deepEqual(await (await api("/auth/session", { token })).json(), { username, expiresAt });
   assert.equal((await api("/api/records", { token })).status, 200);
   await revoke(username);
