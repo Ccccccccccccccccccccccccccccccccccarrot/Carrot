@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=11">
-  <script type="module" src="./app.js?v=11"></script>
+  <link rel="stylesheet" href="./style.css?v=12">
+  <script type="module" src="./app.js?v=12"></script>
 </head>
 <body>
   <main>
@@ -72,7 +72,10 @@
         <section class="card history-trend" aria-labelledby="trend-title">
           <div class="history-card-head">
             <div>
-              <h2 id="trend-title">月度趋势</h2>
+              <div class="trend-heading">
+                <h2 id="trend-title">月度趋势</h2>
+                <span id="monthly-status" class="monthly-status" role="status" hidden></span>
+              </div>
               <p id="trend-description">同一天测量多次时，取当天平均值</p>
             </div>
             <div class="trend-people" aria-label="查看谁的趋势">
@@ -88,6 +91,7 @@
           <canvas id="trend-chart" role="img" aria-label="高压、低压和脉搏的月度趋势图" aria-describedby="trend-description trend-point"></canvas>
           <p id="trend-empty" class="history-empty" hidden></p>
           <p id="trend-point" class="trend-point" aria-live="polite"></p>
+          <p id="monthly-summary" class="monthly-summary" hidden></p>
         </section>
 
         <section class="card history-calendar" aria-labelledby="history-month-title">

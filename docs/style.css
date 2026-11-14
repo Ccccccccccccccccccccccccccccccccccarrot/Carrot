@@ -76,6 +76,17 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
   background: #f3f7f3; color: #536b60; font-size: .82rem;
 }
 .history-trend .history-card-head { align-items: flex-start; }
+.trend-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; }
+.monthly-status {
+  display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 13px;
+  line-height: 1.35; font-weight: 650;
+}
+.monthly-status.normal { color: #176149; background: #e7f4ea; }
+.monthly-status.high { color: #a42d27; background: #fff0ee; }
+.monthly-status.low { color: #205e9f; background: #edf5ff; }
+.monthly-status.mixed { color: #704319; background: #fff3e1; }
+.monthly-status.empty { color: #536b60; background: #f1f4f1; }
+.monthly-summary { color: #536b60; font-size: 13px; line-height: 1.4; margin: 7px 0 0; }
 #trend-description { margin: .16rem 0 0; font-size: .76rem; color: #536b60; }
 .trend-people { display: flex; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: .65rem; background: #eaf1eb; }
 .trend-people button {

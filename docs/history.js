@@ -12,6 +12,30 @@ function dayNumber(date) {
   return Number(date.slice(8));
 }
 
+export function summarizeMonth(rows, person) {
+  const readings = rows.map(({ trend }) => trend).filter((record) => record?.person === person);
+  if (!readings.length) return null;
+
+  const mean = (key) => readings.reduce((sum, record) => sum + record[key], 0) / readings.length;
+  const systolic = mean("systolic");
+  const diastolic = mean("diastolic");
+  const above = systolic >= 135 || diastolic >= 85;
+  const below = systolic < 90 || diastolic < 60;
+  let kind = "normal";
+  let label = "正常";
+  if (above && below) {
+    kind = "mixed";
+    label = "高低压差异大，测量数据可能有误";
+  } else if (above) {
+    kind = "high";
+    label = "月均偏高";
+  } else if (below) {
+    kind = "low";
+    label = "月均偏低";
+  }
+  return { kind, label, count: readings.length, systolic, diastolic };
+}
+
 function dailyAverages(rows, person) {
   const days = new Map();
   for (const { date, trend } of rows) {
@@ -167,6 +191,25 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     if (!month) return;
     const averages = dailyAverages(rows, person);
     const name = personNames.get(person);
+    const status = byId("monthly-status");
+    const monthlySummary = byId("monthly-summary");
+    const monthly = summarizeMonth(rows, person);
+    status.hidden = false;
+    monthlySummary.hidden = !monthly || !complete;
+    if (!complete) {
+      status.className = "monthly-status empty";
+      status.textContent = "数据未同步";
+      monthlySummary.textContent = "";
+    } else if (!monthly) {
+      status.className = "monthly-status empty";
+      status.textContent = "暂无数据";
+      monthlySummary.textContent = "";
+    } else {
+      status.className = `monthly-status ${monthly.kind}`;
+      status.textContent = monthly.label;
+      const format = (value) => Number(value.toFixed(1)).toString();
+      monthlySummary.textContent = `本月 ${monthly.count} 次测量 · 月均 ${format(monthly.systolic)} / ${format(monthly.diastolic)} mmHg`;
+    }
     const empty = averages.length === 0;
     chart.hidden = empty;
     trendEmpty.hidden = !empty;
@@ -256,6 +299,9 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       calendar.replaceChildren();
       list.replaceChildren();
       trendPoint.textContent = "";
+      byId("monthly-status").hidden = true;
+      byId("monthly-summary").hidden = true;
+      byId("monthly-summary").textContent = "";
       chart.width = 0;
     },
   };
