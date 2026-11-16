@@ -1,6 +1,6 @@
 import { workerOrigin } from "./config.js";
-import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=16";
-import { createHistoryView } from "./history.js?v=16";
+import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=17";
+import { classifyReading, createHistoryView } from "./history.js?v=17";
 
 const byId = (id) => document.getElementById(id);
 const form = byId("record-form");
@@ -262,6 +262,12 @@ function renderRecord({ record, state }) {
   timestamp.dateTime = record.measuredAt;
   timestamp.textContent = timeFormat.format(new Date(record.measuredAt));
   metadata.append(person, timestamp);
+  for (const { kind, label } of classifyReading(record)) {
+    const badge = document.createElement("span");
+    badge.className = `reading-status ${kind}`;
+    badge.textContent = label;
+    metadata.append(badge);
+  }
   if (state) {
     const badge = document.createElement("span");
     badge.className = `record-state ${state}`;

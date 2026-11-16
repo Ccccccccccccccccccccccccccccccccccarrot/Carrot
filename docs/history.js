@@ -12,6 +12,20 @@ function dayNumber(date) {
   return Number(date.slice(8));
 }
 
+// 单次读数的提示沿用趋势视图的家庭血压界限，不作为诊断。
+export function classifyReading({ systolic, diastolic }) {
+  if (!Number.isFinite(systolic) || !Number.isFinite(diastolic)) return [{ kind: "unknown", label: "无法判断" }];
+  const high = [], low = [];
+  if (systolic >= 135) high.push("高压");
+  else if (systolic < 90) low.push("高压");
+  if (diastolic >= 85) high.push("低压");
+  else if (diastolic < 60) low.push("低压");
+  const labels = [];
+  if (high.length) labels.push({ kind: "high", label: `${high.length === 2 ? "高低压" : high[0]}偏高` });
+  if (low.length) labels.push({ kind: "low", label: `${low.length === 2 ? "高低压" : low[0]}偏低` });
+  return labels.length ? labels : [{ kind: "normal", label: "正常" }];
+}
+
 export function summarizeMonth(rows, person, period = "月") {
   const readings = rows.map(({ trend }) => trend).filter((record) => record?.person === person);
   if (!readings.length) return null;
@@ -321,25 +335,15 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     complete = isComplete;
     selectedDay = dayNumber(date);
 
-    const days = new Map();
-    for (const row of rows) {
-      if (!days.has(row.date)) days.set(row.date, []);
-      days.get(row.date).push(row);
-    }
+    const counts = new Map();
+    for (const { date } of rows) counts.set(date, (counts.get(date) ?? 0) + 1);
     for (const [index, button] of dayButtons.entries()) {
       const day = index + 1;
-      const dayRows = days.get(`${month}-${String(day).padStart(2, "0")}`) ?? [];
-      const count = dayRows.length;
-      const highPeople = ["father", "mother"].filter((who) => {
-        const result = summarizeMonth(dayRows, who);
-        return result && (result.systolic >= 135 || result.diastolic >= 85);
-      });
+      const count = counts.get(`${month}-${String(day).padStart(2, "0")}`) ?? 0;
       button.classList.toggle("has-readings", count > 0);
-      button.classList.toggle("daily-high", highPeople.length > 0);
       button.setAttribute("aria-pressed", String(day === selectedDay));
       const label = count ? `${count} 条记录` : complete ? "无记录" : "本机暂无记录";
-      const highLabel = highPeople.length ? `，${highPeople.map((who) => personNames.get(who)).join("、")}日均偏高` : "";
-      button.setAttribute("aria-label", `${monthNumber}月${day}日，${label}${highLabel}`);
+      button.setAttribute("aria-label", `${monthNumber}月${day}日，${label}`);
     }
 
     const visible = rows.filter((row) => row.date === date);
