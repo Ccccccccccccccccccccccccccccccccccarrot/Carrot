@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=14">
-  <script type="module" src="./app.js?v=14"></script>
+  <link rel="stylesheet" href="./style.css?v=15">
+  <script type="module" src="./app.js?v=15"></script>
 </head>
 <body>
   <main>
@@ -73,7 +73,7 @@
           <div class="history-card-head">
             <div>
               <div class="trend-heading">
-                <h2 id="trend-title">月度趋势</h2>
+                <h2 id="trend-title">周度趋势</h2>
                 <span id="monthly-status" class="monthly-status" role="status" hidden></span>
               </div>
               <p id="trend-description">同一天测量多次时，取当天平均值</p>
@@ -84,8 +84,8 @@
             </div>
           </div>
           <div class="trend-options" role="group" aria-label="趋势时间范围">
-            <button type="button" data-trend-range="month" aria-pressed="true">月度趋势</button>
-            <button type="button" data-trend-range="week" aria-pressed="false">本周记录</button>
+            <button type="button" data-trend-range="week" aria-pressed="true">本周记录</button>
+            <button type="button" data-trend-range="month" aria-pressed="false">月度趋势</button>
           </div>
           <p id="trend-date-range" class="trend-date-range"></p>
           <ul class="trend-legend" aria-label="图例">

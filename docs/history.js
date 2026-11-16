@@ -212,7 +212,7 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
   const trendEmpty = byId("trend-empty");
   const trendPoint = byId("trend-point");
   let person = "father";
-  let range = "month";
+  let range = "week";
   let extra = [];
   let extraComplete = {};
   let month = "";
@@ -350,12 +350,15 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     const button = event.target.closest("button[data-day]");
     if (button) chooseDay(Number(button.dataset.day));
   });
+  function setRange(value) {
+    range = value;
+    for (const item of document.querySelectorAll("[data-trend-range]")) {
+      item.setAttribute("aria-pressed", String(item.dataset.trendRange === range));
+    }
+    renderTrend();
+  }
   for (const button of document.querySelectorAll("[data-trend-range]")) {
-    button.addEventListener("click", () => {
-      range = button.dataset.trendRange;
-      for (const item of document.querySelectorAll("[data-trend-range]")) item.setAttribute("aria-pressed", String(item === button));
-      renderTrend();
-    });
+    button.addEventListener("click", () => setRange(button.dataset.trendRange));
   }
   for (const button of personButtons) {
     button.addEventListener("click", () => {
@@ -383,6 +386,7 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
 
   return {
     show,
+    setRange,
     clear() {
       month = "";
       rows = [];
