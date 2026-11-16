@@ -89,7 +89,7 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
   const min = Math.max(0, Math.floor(smallest / step) * step);
   const max = Math.ceil(largest / step) * step;
   const left = 35;
-  const right = width - 78;
+  const right = width - 13;
   const top = 13;
   const bottom = height - 24;
   const x = (day) => left + (day - 1) / (lastDay - 1) * (right - left);
@@ -97,8 +97,8 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
 
   // 上边界为偏高阈值，区间含下限、不含上限。
   const bands = [
-    { low: 90, high: 135, color: "rgba(180, 69, 56, 0.10)", ink: "#a42d27", name: "高压参考区间", bounds: "90–<135" },
-    { low: 60, high: 85, color: "rgba(8, 123, 230, 0.10)", ink: "#205e9f", name: "低压参考区间", bounds: "60–<85" },
+    { low: 90, high: 135, color: "rgba(180, 69, 56, 0.10)" },
+    { low: 60, high: 85, color: "rgba(8, 123, 230, 0.10)" },
   ];
   for (const band of bands) {
     context.fillStyle = band.color;
@@ -131,16 +131,6 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
     context.setLineDash([]);
   }
 
-  for (const band of bands) {
-    const middle = (y(band.low) + y(band.high)) / 2;
-    context.font = "10px system-ui";
-    context.textAlign = "left";
-    context.textBaseline = "middle";
-    context.fillStyle = band.ink;
-    context.fillText(band.name.slice(0, 2), right + 5, middle - 10);
-    context.fillText(band.name.slice(2), right + 5, middle + 1);
-    context.fillText(band.bounds, right + 5, middle + 12);
-  }
   context.lineJoin = "round";
   context.lineCap = "round";
   const chartStyle = getComputedStyle(chart);
@@ -219,7 +209,7 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
         const candidates = [];
         for (const dy of [-12, 12, -24, 24, -36, 36, -48, 48, -60, 60]) {
           for (const dx of [0, -10, 10, -20, 20]) {
-            const lx = Math.max(halfWidth + 2, Math.min(right - halfWidth + 5, px + dx));
+            const lx = Math.max(halfWidth + 2, Math.min(width - halfWidth - 2, px + dx));
             const ly = Math.max(7, Math.min(bottom - 6, py + dy));
             const box = { left: lx - halfWidth, right: lx + halfWidth, top: ly - 6, bottom: ly + 6 };
             const collides = placed.some((other) => box.left < other.right + 2 && box.right > other.left - 2 &&

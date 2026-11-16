@@ -11,8 +11,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=18">
-  <script type="module" src="./app.js?v=18"></script>
+  <link rel="stylesheet" href="./style.css?v=19">
+  <script type="module" src="./app.js?v=19"></script>
 </head>
 <body>
   <main>
@@ -92,6 +92,10 @@
             <li class="high"><i aria-hidden="true"></i>高压 <small>mmHg</small></li>
             <li class="low"><i aria-hidden="true"></i>低压 <small>mmHg</small></li>
             <li class="pulse"><i aria-hidden="true"></i>脉搏 <small>次/分</small></li>
+          </ul>
+          <ul class="range-legend" aria-label="血压提示参考区间">
+            <li class="high-range"><i aria-hidden="true"></i>高压参考区间 90–&lt;135 mmHg</li>
+            <li class="low-range"><i aria-hidden="true"></i>低压参考区间 60–&lt;85 mmHg</li>
           </ul>
           <canvas id="trend-chart" role="img" aria-label="高压、低压和脉搏的月度趋势图" aria-describedby="trend-description trend-point"></canvas>
           <p id="trend-empty" class="history-empty" hidden></p>
