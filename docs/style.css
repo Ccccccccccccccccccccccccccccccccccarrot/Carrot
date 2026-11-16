@@ -68,8 +68,6 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
 }
 #history-days button.has-readings::after { content: ""; position: absolute; left: calc(50% - 2.5px); bottom: 6px; }
 #history-days button[aria-pressed="true"]::after { background: #b7e4ca; }
-#history-days button.has-readings.daily-high::after, .calendar-key .daily-high-key { background: #b44538; }
-#history-days button.has-readings.daily-high[aria-pressed="true"]::after { background: #ff8175; }
 .calendar-footer { margin-top: .45rem; }
 .calendar-key { display: flex; align-items: center; gap: 7px; margin: 0; color: #536b60; font-size: .75rem; }
 #refresh { min-height: 44px; padding: .25rem .65rem; font-size: .82rem; border-color: #d4e2d8; }
@@ -112,7 +110,12 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
   .month-actions button:hover, #history-days button:hover { border-color: #91b6a3; }
 }
 #history-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .4rem; }
-.record-meta { display: flex; flex-wrap: wrap; gap: 0 .6rem; }
+.record-meta { display: flex; align-items: center; flex-wrap: wrap; gap: .15rem .45rem; }
+.record-meta .reading-status { padding: 1px 5px; border-radius: 4px; font-size: .72rem; font-weight: 650; line-height: 1.4; }
+.record-meta .reading-status.normal { color: #176149; background: #e7f4ea; }
+.record-meta .reading-status.high { color: #a42d27; background: #fff0ee; }
+.record-meta .reading-status.low { color: #205e9f; background: #edf5ff; }
+.record-meta .reading-status.unknown { color: #536b60; background: #f1f4f1; }
 li time { color: #51645a; font-size: .85rem; }
 li strong { font-size: 1.2rem; }
 li span { display: inline-block; font-size: .85rem; color: #51645a; }
