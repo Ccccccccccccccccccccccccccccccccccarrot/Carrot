@@ -68,11 +68,11 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
   context.scale(ratio, ratio);
 
   const values = averages.flatMap((point) => series.map(({ key }) => point[key]).filter(Number.isFinite));
-  const smallest = Math.min(...values);
-  const largest = Math.max(...values);
-  const step = Math.max(20, Math.ceil((largest - smallest + 6) / 100) * 20);
-  const min = Math.max(0, Math.floor((smallest - 3) / step) * step);
-  const max = Math.ceil((largest + 3) / step) * step;
+  const smallest = values.length ? Math.min(...values) : 60;
+  const largest = values.length ? Math.max(...values) : 160;
+  const step = values.length ? Math.max(20, Math.ceil((largest - smallest + 6) / 100) * 20) : 20;
+  const min = values.length ? Math.max(0, Math.floor((smallest - 3) / step) * step) : 60;
+  const max = values.length ? Math.ceil((largest + 3) / step) * step : 160;
   const left = 35;
   const right = width - 13;
   const top = 13;
@@ -97,13 +97,15 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
     context.fillText(weekly ? ["一", "二", "三", "四", "五", "六", "日"][day - 1] : day, x(day), bottom + 15);
   }
 
-  context.strokeStyle = "#9eafa6";
-  context.setLineDash([4, 4]);
-  context.beginPath();
-  context.moveTo(x(selectedDay), top);
-  context.lineTo(x(selectedDay), bottom);
-  context.stroke();
-  context.setLineDash([]);
+  if (averages.length) {
+    context.strokeStyle = "#9eafa6";
+    context.setLineDash([4, 4]);
+    context.beginPath();
+    context.moveTo(x(selectedDay), top);
+    context.lineTo(x(selectedDay), bottom);
+    context.stroke();
+    context.setLineDash([]);
+  }
 
   context.lineJoin = "round";
   context.lineCap = "round";
@@ -290,12 +292,13 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       monthlySummary.textContent = `本${period} ${monthly.count} 次测量 · ${period}均 ${format(monthly.systolic)} / ${format(monthly.diastolic)} mmHg`;
     }
     const empty = averages.length === 0;
-    chart.hidden = empty;
+    chart.hidden = false;
     trendEmpty.hidden = !empty;
     trendPoint.hidden = empty;
     plot = null;
     if (empty) {
       trendEmpty.textContent = rangeComplete ? `${name}本${period}没有测量记录。` : `本机暂无完整的本${period}趋势数据。`;
+      paintTrend(chart, averages, selectedIndex, range === "week" ? 7 : lastDay, range === "week");
       return;
     }
 
@@ -318,15 +321,25 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     complete = isComplete;
     selectedDay = dayNumber(date);
 
-    const counts = new Map();
-    for (const { date } of rows) counts.set(date, (counts.get(date) ?? 0) + 1);
+    const days = new Map();
+    for (const row of rows) {
+      if (!days.has(row.date)) days.set(row.date, []);
+      days.get(row.date).push(row);
+    }
     for (const [index, button] of dayButtons.entries()) {
       const day = index + 1;
-      const count = counts.get(`${month}-${String(day).padStart(2, "0")}`) ?? 0;
+      const dayRows = days.get(`${month}-${String(day).padStart(2, "0")}`) ?? [];
+      const count = dayRows.length;
+      const highPeople = ["father", "mother"].filter((who) => {
+        const result = summarizeMonth(dayRows, who);
+        return result && (result.systolic >= 135 || result.diastolic >= 85);
+      });
       button.classList.toggle("has-readings", count > 0);
+      button.classList.toggle("daily-high", highPeople.length > 0);
       button.setAttribute("aria-pressed", String(day === selectedDay));
       const label = count ? `${count} 条记录` : complete ? "无记录" : "本机暂无记录";
-      button.setAttribute("aria-label", `${monthNumber}月${day}日，${label}`);
+      const highLabel = highPeople.length ? `，${highPeople.map((who) => personNames.get(who)).join("、")}日均偏高` : "";
+      button.setAttribute("aria-label", `${monthNumber}月${day}日，${label}${highLabel}`);
     }
 
     const visible = rows.filter((row) => row.date === date);
