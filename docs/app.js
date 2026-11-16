@@ -1,6 +1,6 @@
 import { workerOrigin } from "./config.js";
-import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=15";
-import { createHistoryView } from "./history.js?v=15";
+import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=16";
+import { createHistoryView } from "./history.js?v=16";
 
 const byId = (id) => document.getElementById(id);
 const form = byId("record-form");

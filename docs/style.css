@@ -68,6 +68,8 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
 }
 #history-days button.has-readings::after { content: ""; position: absolute; left: calc(50% - 2.5px); bottom: 6px; }
 #history-days button[aria-pressed="true"]::after { background: #b7e4ca; }
+#history-days button.has-readings.daily-high::after, .calendar-key .daily-high-key { background: #b44538; }
+#history-days button.has-readings.daily-high[aria-pressed="true"]::after { background: #ff8175; }
 .calendar-footer { margin-top: .45rem; }
 .calendar-key { display: flex; align-items: center; gap: 7px; margin: 0; color: #536b60; font-size: .75rem; }
 #refresh { min-height: 44px; padding: .25rem .65rem; font-size: .82rem; border-color: #d4e2d8; }
