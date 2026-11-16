@@ -1,6 +1,6 @@
 import { workerOrigin } from "./config.js";
-import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=12";
-import { createHistoryView } from "./history.js?v=12";
+import { cacheMonth, clearHistory, discardChanges, enqueue, finishChange, queuedChanges, readMonth } from "./storage.js?v=13";
+import { createHistoryView } from "./history.js?v=13";
 
 const byId = (id) => document.getElementById(id);
 const form = byId("record-form");
@@ -46,6 +46,11 @@ const historyView = createHistoryView({
   renderRecord,
   selectDay(day) {
     if (changingHistory || !account) return;
+    if (day.slice(0, 7) !== historyMonth) {
+      historyMonth = day.slice(0, 7);
+      historySnapshot = null;
+      resumeSync();
+    }
     historyDay = day;
     historyNotice.textContent = "";
     rememberHistoryDate();
@@ -83,7 +88,7 @@ function renderHistory() {
   const latest = rows.find(({ state }) => state !== "deleting");
   const fallback = today.startsWith(historyMonth) ? today : `${historyMonth}-01`;
   const day = historyDay || latest?.date || fallback;
-  historyView.show(historyMonth, day, rows, snapshot?.complete ?? false);
+  historyView.show(historyMonth, day, rows, snapshot?.complete ?? false, snapshot?.adjacent ?? [], snapshot?.adjacentComplete ?? {});
 }
 
 function encode(bytes) {
@@ -412,6 +417,7 @@ async function loadHistory(owner, remote = false) {
     if (!current()) return false;
     await cacheMonth(owner.username, month, records);
   }
+  async function readRows(month) {
   const { cache, changes } = await readMonth(owner.username, month);
   if (!current()) return false;
   const confirmed = new Map((cache?.records ?? []).map((record) => [record.id, record]));
@@ -429,7 +435,25 @@ async function loadHistory(owner, remote = false) {
     ...row, date: beijingInputTime(new Date(row.record.measuredAt)).slice(0, 10),
   }))
     .sort((a, b) => b.record.measuredAt.localeCompare(a.record.measuredAt));
-  historySnapshot = { month, rows: ordered, complete: Boolean(cache?.complete) };
+  return { rows: ordered, complete: Boolean(cache?.complete) };
+  }
+  const main = await readRows(month);
+  const [year, number] = month.split("-").map(Number);
+  const neighbors = [-1, 1].map((offset) => new Date(Date.UTC(year, number - 1 + offset, 1)).toISOString().slice(0, 7)).filter((value) => monthPattern.test(value));
+  const adjacent = await Promise.all(neighbors.map(async (neighbor) => {
+    if (remote) {
+      try {
+        const response = await api(`/api/records?month=${neighbor}`, { token: owner.session });
+        if (response.ok) {
+          const { records } = await response.json();
+          if (current()) await cacheMonth(owner.username, neighbor, records);
+        } else return { rows: (await readRows(neighbor)).rows, complete: false };
+      } catch { return { rows: (await readRows(neighbor)).rows, complete: false }; }
+    }
+    return readRows(neighbor);
+  }));
+  if (!current()) return false;
+  historySnapshot = { month, rows: main.rows, complete: main.complete, adjacent: adjacent.flatMap((item) => item.rows), adjacentComplete: Object.fromEntries(neighbors.map((neighbor, index) => [neighbor, adjacent[index].complete])) };
   renderHistory();
   return remote;
 }

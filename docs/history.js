@@ -12,7 +12,7 @@ function dayNumber(date) {
   return Number(date.slice(8));
 }
 
-export function summarizeMonth(rows, person) {
+export function summarizeMonth(rows, person, period = "月") {
   const readings = rows.map(({ trend }) => trend).filter((record) => record?.person === person);
   if (!readings.length) return null;
 
@@ -28,19 +28,19 @@ export function summarizeMonth(rows, person) {
     label = "高低压差异大，测量数据可能有误";
   } else if (above) {
     kind = "high";
-    label = "月均偏高";
+    label = `${period}均偏高`;
   } else if (below) {
     kind = "low";
-    label = "月均偏低";
+    label = `${period}均偏低`;
   }
   return { kind, label, count: readings.length, systolic, diastolic };
 }
 
-function dailyAverages(rows, person) {
+function dailyAverages(rows, person, start) {
   const days = new Map();
   for (const { date, trend } of rows) {
     if (trend?.person !== person) continue;
-    const day = dayNumber(date);
+    const day = Math.round((Date.parse(`${date}T00:00:00Z`) - start.valueOf()) / 86400000) + 1;
     if (!days.has(day)) days.set(day, []);
     days.get(day).push(trend);
   }
@@ -57,7 +57,7 @@ function dailyAverages(rows, person) {
   });
 }
 
-function paintTrend(chart, averages, selectedDay, lastDay) {
+function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
   const context = chart.getContext("2d");
   const { width, height } = chart.getBoundingClientRect();
   if (!context || !width || !height) return null;
@@ -93,8 +93,8 @@ function paintTrend(chart, averages, selectedDay, lastDay) {
     context.fillText(value, left - 7, y(value));
   }
   context.textAlign = "center";
-  for (const day of [1, 5, 10, 15, 20, 25, lastDay]) {
-    context.fillText(day, x(day), bottom + 15);
+  for (const day of weekly ? [1, 2, 3, 4, 5, 6, 7] : [1, 5, 10, 15, 20, 25, lastDay]) {
+    context.fillText(weekly ? ["一", "二", "三", "四", "五", "六", "日"][day - 1] : day, x(day), bottom + 15);
   }
 
   context.strokeStyle = "#9eafa6";
@@ -152,6 +152,9 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
   const trendEmpty = byId("trend-empty");
   const trendPoint = byId("trend-point");
   let person = "father";
+  let range = "month";
+  let extra = [];
+  let extraComplete = {};
   let month = "";
   let selectedDay = 0;
   let monthNumber = 0;
@@ -189,14 +192,30 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
 
   function renderTrend() {
     if (!month) return;
-    const averages = dailyAverages(rows, person);
+    const selectedDate = new Date(`${month}-${String(selectedDay).padStart(2, "0")}T00:00:00Z`);
+    const start = new Date(selectedDate);
+    if (range === "week") start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
+    else start.setUTCDate(1);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + (range === "week" ? 6 : lastDay - 1));
+    const dateKey = (date) => date.toISOString().slice(0, 10);
+    const formatDate = (date) => `${date.getUTCFullYear()}/${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+    const spanning = start.toISOString().slice(0, 7) !== end.toISOString().slice(0, 7);
+    const rangeComplete = complete && (!spanning || range !== "week" || Boolean(extraComplete[start.toISOString().slice(0, 7) === month ? end.toISOString().slice(0, 7) : start.toISOString().slice(0, 7)]));
+    const rangeRows = (range === "week" ? rows.concat(extra) : rows).filter(({ date }) => date >= dateKey(start) && date <= dateKey(end));
+    const averages = dailyAverages(rangeRows, person, start);
+    const selectedIndex = Math.round((selectedDate - start) / 86400000) + 1;
+    const period = range === "week" ? "周" : "月";
+    byId("trend-title").textContent = range === "week" ? "周度趋势" : "月度趋势";
+    byId("trend-date-range").textContent = `${formatDate(start)} — ${formatDate(end)}`;
+    chart.setAttribute("aria-label", `高压、低压和脉搏的${period}度趋势图`);
     const name = personNames.get(person);
     const status = byId("monthly-status");
     const monthlySummary = byId("monthly-summary");
-    const monthly = summarizeMonth(rows, person);
+    const monthly = summarizeMonth(rangeRows, person, period);
     status.hidden = false;
-    monthlySummary.hidden = !monthly || !complete;
-    if (!complete) {
+    monthlySummary.hidden = !monthly || !rangeComplete;
+    if (!rangeComplete) {
       status.className = "monthly-status empty";
       status.textContent = "数据未同步";
       monthlySummary.textContent = "";
@@ -208,7 +227,7 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       status.className = `monthly-status ${monthly.kind}`;
       status.textContent = monthly.label;
       const format = (value) => Number(value.toFixed(1)).toString();
-      monthlySummary.textContent = `本月 ${monthly.count} 次测量 · 月均 ${format(monthly.systolic)} / ${format(monthly.diastolic)} mmHg`;
+      monthlySummary.textContent = `本${period} ${monthly.count} 次测量 · ${period}均 ${format(monthly.systolic)} / ${format(monthly.diastolic)} mmHg`;
     }
     const empty = averages.length === 0;
     chart.hidden = empty;
@@ -216,11 +235,11 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     trendPoint.hidden = empty;
     plot = null;
     if (empty) {
-      trendEmpty.textContent = complete ? `${name}本月没有测量记录。` : "本机暂无本月趋势数据。";
+      trendEmpty.textContent = rangeComplete ? `${name}本${period}没有测量记录。` : `本机暂无完整的本${period}趋势数据。`;
       return;
     }
 
-    const selected = averages.find(({ day }) => day === selectedDay);
+    const selected = averages.find(({ day }) => day === selectedIndex);
     const summary = selected
       ? series.map(({ key, label, unit }) => selected[key] === null
         ? `${label}未填`
@@ -228,12 +247,14 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       : "当天没有测量记录";
     const message = `${monthNumber}月${selectedDay}日 · ${name} · ${summary}`;
     if (trendPoint.textContent !== message) trendPoint.textContent = message;
-    plot = paintTrend(chart, averages, selectedDay, lastDay);
+    plot = paintTrend(chart, averages, selectedIndex, range === "week" ? 7 : lastDay, range === "week");
   }
 
-  function show(value, date, items, isComplete) {
+  function show(value, date, items, isComplete, adjacent = [], adjacentComplete = {}) {
     if (month !== value) buildCalendar(value);
     rows = items;
+    extra = adjacent;
+    extraComplete = adjacentComplete;
     complete = isComplete;
     selectedDay = dayNumber(date);
 
@@ -269,6 +290,13 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     const button = event.target.closest("button[data-day]");
     if (button) chooseDay(Number(button.dataset.day));
   });
+  for (const button of document.querySelectorAll("[data-trend-range]")) {
+    button.addEventListener("click", () => {
+      range = button.dataset.trendRange;
+      for (const item of document.querySelectorAll("[data-trend-range]")) item.setAttribute("aria-pressed", String(item === button));
+      renderTrend();
+    });
+  }
   for (const button of personButtons) {
     button.addEventListener("click", () => {
       person = button.dataset.trendPerson;
@@ -281,7 +309,11 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     const position = event.clientX - chart.getBoundingClientRect().left;
     if (position < plot.left - 6 || position > plot.right + 6) return;
     const fraction = Math.max(0, Math.min(1, (position - plot.left) / (plot.right - plot.left)));
-    chooseDay(Math.round(fraction * (plot.lastDay - 1)) + 1);
+    const index = Math.round(fraction * (plot.lastDay - 1));
+    const date = new Date(`${month}-${String(selectedDay).padStart(2, "0")}T00:00:00Z`);
+    if (range === "week") date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7 + index);
+    else date.setUTCDate(index + 1);
+    selectDay(date.toISOString().slice(0, 10));
   });
   if (typeof ResizeObserver === "function") {
     new ResizeObserver(renderTrend).observe(byId("trend-title").closest(".history-trend"));
