@@ -136,3 +136,8 @@ button.danger { color: #9a3021; border-color: #d6a9a2; }
 #edit-dialog::backdrop { background: rgb(25 56 46 / 40%); }
 #edit-heading:focus { outline: none; }
 .edit-actions { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; }
+
+.trend-options { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: #eaf1eb; border-radius: 11px; margin-top: 12px; }
+.trend-options button { min-height: 40px; border: 0; border-radius: 8px; background: transparent; color: #315e49; font-weight: 650; }
+.trend-options button[aria-pressed="true"] { color: #fff; background: #155c43; }
+.trend-date-range { color: #536b60; font-size: 13px; margin-top: 8px; }
