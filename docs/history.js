@@ -171,9 +171,6 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
     context.font = "600 11px system-ui";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.lineWidth = 3;
-    context.lineJoin = "round";
-    context.strokeStyle = "#fff";
     const placed = [];
     const segments = [];
     const points = [];
@@ -187,7 +184,7 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
         previous = current;
       }
     }
-    // 检查标签包围盒与每条线段及数据点，避免白色描边盖住折线。
+    // 检查标签包围盒与每条线段及数据点，避免文字盖住折线。
     function overlapsLine(box) {
       if (points.some((point) => point.x >= box.left - 5 && point.x <= box.right + 5 &&
           point.y >= box.top - 5 && point.y <= box.bottom + 5)) return true;
@@ -221,7 +218,6 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
         const { lx, ly, box } = candidates[0];
         placed.push(box);
         context.fillStyle = chartStyle.getPropertyValue(`--trend-${key}`).trim();
-        context.strokeText(label, lx, ly);
         context.fillText(label, lx, ly);
       }
     }
