@@ -1,6 +1,6 @@
-const shell = "carrot-shell-v14";
+const shell = "carrot-shell-v15";
 const home = new URL("./", self.registration.scope).href;
-const assets = ["./app.js?v=14", "./storage.js?v=14", "./history.js?v=14", "./style.css?v=14", "./config.js",
+const assets = ["./app.js?v=15", "./storage.js?v=15", "./history.js?v=15", "./style.css?v=15", "./config.js",
   "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png"]
   .map((path) => new URL(path, home).href);
 
@@ -10,7 +10,7 @@ self.addEventListener("install", (event) => {
     // An incomplete download should leave the previous offline app available.
     await cache.addAll([home, ...assets].map((url) => new Request(url, { cache: "reload" })));
     const page = await cache.match(home);
-    if (!page || !(await page.text()).includes("./app.js?v=14")) {
+    if (!page || !(await page.text()).includes("./app.js?v=15")) {
       throw new Error("The new app page is not available yet");
     }
     await self.skipWaiting();
