@@ -231,7 +231,6 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
   const chart = byId("trend-chart");
   const personButtons = [...document.querySelectorAll("[data-trend-person]")];
   const trendEmpty = byId("trend-empty");
-  const trendPoint = byId("trend-point");
   let person = "father";
   let range = "week";
   let extra = [];
@@ -313,7 +312,6 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
     const empty = averages.length === 0;
     chart.hidden = false;
     trendEmpty.hidden = !empty;
-    trendPoint.hidden = empty;
     plot = null;
     if (empty) {
       trendEmpty.textContent = rangeComplete ? `${name}本${period}没有测量记录。` : `本机暂无完整的本${period}趋势数据。`;
@@ -321,14 +319,6 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       return;
     }
 
-    const selected = averages.find(({ day }) => day === selectedIndex);
-    const summary = selected
-      ? series.map(({ key, label, unit }) => selected[key] === null
-        ? `${label}未填`
-        : `${label} ${selected[key]} ${unit}`).join(" · ")
-      : "当天没有测量记录";
-    const message = `${monthNumber}月${selectedDay}日 · ${name} · ${summary}`;
-    if (trendPoint.textContent !== message) trendPoint.textContent = message;
     plot = paintTrend(chart, averages, selectedIndex, range === "week" ? 7 : lastDay, range === "week");
   }
 
@@ -416,7 +406,6 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       plot = null;
       calendar.replaceChildren();
       list.replaceChildren();
-      trendPoint.textContent = "";
       byId("monthly-status").hidden = true;
       byId("monthly-summary").hidden = true;
       byId("monthly-summary").textContent = "";
