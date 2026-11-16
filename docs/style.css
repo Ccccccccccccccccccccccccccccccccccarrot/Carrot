@@ -103,7 +103,7 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
 .trend-legend i { width: 16px; border-top: 3px solid; border-radius: 2px; }
 .trend-legend .high i { border-color: var(--trend-systolic); }
 .trend-legend .low i { border-color: var(--trend-diastolic); }
-.trend-legend .pulse i { border-color: var(--trend-pulse); border-top-style: dashed; }
+.trend-legend .pulse i { border-color: var(--trend-pulse); }
 #trend-chart { display: block; width: 100%; height: 190px; cursor: crosshair; }
 .trend-point { margin-top: .2rem; }
 @media (hover: hover) {

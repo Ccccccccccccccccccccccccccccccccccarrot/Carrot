@@ -82,18 +82,28 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
   context.scale(ratio, ratio);
 
   const values = averages.flatMap((point) => series.map(({ key }) => point[key]).filter(Number.isFinite));
-  const smallest = values.length ? Math.min(...values) : 60;
-  const largest = values.length ? Math.max(...values) : 160;
-  const step = values.length ? Math.max(20, Math.ceil((largest - smallest + 6) / 100) * 20) : 20;
-  const min = values.length ? Math.max(0, Math.floor((smallest - 3) / step) * step) : 60;
-  const max = values.length ? Math.ceil((largest + 3) / step) * step : 160;
+  // 固定包含两段参考带，并在读数超出时自动扩展纵轴。
+  const smallest = Math.min(60, ...values);
+  const largest = Math.max(160, ...values);
+  const step = Math.max(20, Math.ceil((largest - smallest) / 120) * 20);
+  const min = Math.max(0, Math.floor(smallest / step) * step);
+  const max = Math.ceil(largest / step) * step;
   const left = 35;
-  const right = width - 13;
+  const right = width - 78;
   const top = 13;
   const bottom = height - 24;
   const x = (day) => left + (day - 1) / (lastDay - 1) * (right - left);
   const y = (value) => bottom - (value - min) / (max - min) * (bottom - top);
 
+  // 上边界为偏高阈值，区间含下限、不含上限。
+  const bands = [
+    { low: 90, high: 135, color: "rgba(180, 69, 56, 0.10)", ink: "#a42d27", name: "高压参考区间", bounds: "90–<135" },
+    { low: 60, high: 85, color: "rgba(8, 123, 230, 0.10)", ink: "#205e9f", name: "低压参考区间", bounds: "60–<85" },
+  ];
+  for (const band of bands) {
+    context.fillStyle = band.color;
+    context.fillRect(left, y(band.high), right - left, y(band.low) - y(band.high));
+  }
   context.font = "12px system-ui";
   context.fillStyle = "#536b60";
   context.textAlign = "right";
@@ -121,6 +131,16 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
     context.setLineDash([]);
   }
 
+  for (const band of bands) {
+    const middle = (y(band.low) + y(band.high)) / 2;
+    context.font = "10px system-ui";
+    context.textAlign = "left";
+    context.textBaseline = "middle";
+    context.fillStyle = band.ink;
+    context.fillText(band.name.slice(0, 2), right + 5, middle - 10);
+    context.fillText(band.name.slice(2), right + 5, middle + 1);
+    context.fillText(band.bounds, right + 5, middle + 12);
+  }
   context.lineJoin = "round";
   context.lineCap = "round";
   const chartStyle = getComputedStyle(chart);
@@ -129,7 +149,6 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
     context.strokeStyle = color;
     context.fillStyle = color;
     context.lineWidth = 2.3;
-    if (key === "pulse") context.setLineDash([5, 4]);
     context.beginPath();
     let connected = false;
     for (const point of averages) {
@@ -200,7 +219,7 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
         const candidates = [];
         for (const dy of [-12, 12, -24, 24, -36, 36, -48, 48, -60, 60]) {
           for (const dx of [0, -10, 10, -20, 20]) {
-            const lx = Math.max(halfWidth + 2, Math.min(width - halfWidth - 2, px + dx));
+            const lx = Math.max(halfWidth + 2, Math.min(right - halfWidth + 5, px + dx));
             const ly = Math.max(7, Math.min(bottom - 6, py + dy));
             const box = { left: lx - halfWidth, right: lx + halfWidth, top: ly - 6, bottom: ly + 6 };
             const collides = placed.some((other) => box.left < other.right + 2 && box.right > other.left - 2 &&
