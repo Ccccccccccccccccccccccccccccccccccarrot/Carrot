@@ -141,6 +141,66 @@ function paintTrend(chart, averages, selectedDay, lastDay, weekly) {
       }
     }
   }
+  // 周视图的数据点较少，直接标注当天平均值，方便在手机上查看。
+  if (weekly) {
+    context.font = "600 11px system-ui";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.lineWidth = 3;
+    context.lineJoin = "round";
+    context.strokeStyle = "#fff";
+    const placed = [];
+    const segments = [];
+    const points = [];
+    for (const { key } of series) {
+      let previous = null;
+      for (const point of averages) {
+        if (point[key] === null) { previous = null; continue; }
+        const current = { x: x(point.day), y: y(point[key]) };
+        points.push(current);
+        if (previous) segments.push({ from: previous, to: current });
+        previous = current;
+      }
+    }
+    // 检查标签包围盒与每条线段及数据点，避免白色描边盖住折线。
+    function overlapsLine(box) {
+      if (points.some((point) => point.x >= box.left - 5 && point.x <= box.right + 5 &&
+          point.y >= box.top - 5 && point.y <= box.bottom + 5)) return true;
+      return segments.some(({ from, to }) => {
+        const left = Math.max(box.left - 2, Math.min(from.x, to.x));
+        const right = Math.min(box.right + 2, Math.max(from.x, to.x));
+        if (left > right) return false;
+        const lineY = (px) => from.y + (to.y - from.y) * (px - from.x) / (to.x - from.x);
+        const y1 = lineY(left), y2 = lineY(right);
+        return Math.max(y1, y2) >= box.top - 2 && Math.min(y1, y2) <= box.bottom + 2;
+      });
+    }
+    for (const point of averages) {
+      for (const { key } of series) {
+        if (point[key] === null) continue;
+        const label = String(point[key]);
+        const halfWidth = context.measureText(label).width / 2 + 2;
+        const px = x(point.day), py = y(point[key]);
+        const candidates = [];
+        for (const dy of [-12, 12, -24, 24, -36, 36, -48, 48, -60, 60]) {
+          for (const dx of [0, -10, 10, -20, 20]) {
+            const lx = Math.max(halfWidth + 2, Math.min(width - halfWidth - 2, px + dx));
+            const ly = Math.max(7, Math.min(bottom - 6, py + dy));
+            const box = { left: lx - halfWidth, right: lx + halfWidth, top: ly - 6, bottom: ly + 6 };
+            const collides = placed.some((other) => box.left < other.right + 2 && box.right > other.left - 2 &&
+              box.top < other.bottom + 1 && box.bottom > other.top - 1);
+            candidates.push({ lx, ly, box, score: (overlapsLine(box) ? 10000 : 0) + (collides ? 10000 : 0) + Math.abs(dy) + Math.abs(dx) });
+          }
+        }
+        candidates.sort((a, b) => a.score - b.score);
+        const { lx, ly, box } = candidates[0];
+        placed.push(box);
+        context.fillStyle = chartStyle.getPropertyValue(`--trend-${key}`).trim();
+        context.strokeText(label, lx, ly);
+        context.fillText(label, lx, ly);
+      }
+    }
+  }
   return { left, right, lastDay };
 }
 
