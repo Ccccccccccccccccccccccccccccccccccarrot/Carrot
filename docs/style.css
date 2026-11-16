@@ -104,6 +104,11 @@ li { padding: .65rem 0; border-top: 1px solid #e0e9e3; }
 .trend-legend .high i { border-color: var(--trend-systolic); }
 .trend-legend .low i { border-color: var(--trend-diastolic); }
 .trend-legend .pulse i { border-color: var(--trend-pulse); }
+ .range-legend { display: flex; flex-wrap: wrap; gap: .15rem .7rem; margin: .2rem 0 .35rem; }
+.range-legend li { display: flex; align-items: center; gap: 4px; padding: 0; border: 0; color: #536b60; font-size: .68rem; }
+.range-legend i { width: 12px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.range-legend .high-range i { background: rgba(180, 69, 56, 0.18); }
+.range-legend .low-range i { background: rgba(8, 123, 230, 0.18); }
 #trend-chart { display: block; width: 100%; height: 190px; cursor: crosshair; }
 .trend-point { margin-top: .2rem; }
 @media (hover: hover) {
