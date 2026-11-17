@@ -304,8 +304,13 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       status.textContent = "暂无数据";
       monthlySummary.textContent = "";
     } else {
-      status.className = `monthly-status ${monthly.kind}`;
-      status.textContent = monthly.label;
+      status.className = "trend-statuses";
+      status.replaceChildren(...classifyReading(monthly).map(({ kind, label }) => {
+        const badge = document.createElement("span");
+        badge.className = `monthly-status ${kind}`;
+        badge.textContent = label === "正常" ? label : `${period}均${label}`;
+        return badge;
+      }));
       const format = (value) => Number(value.toFixed(1)).toString();
       monthlySummary.textContent = `本${period} ${monthly.count} 次测量 · ${period}均 ${format(monthly.systolic)} / ${format(monthly.diastolic)} mmHg`;
     }
