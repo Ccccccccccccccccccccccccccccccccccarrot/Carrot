@@ -308,7 +308,7 @@ export function createHistoryView({ personNames, renderRecord, selectDay, change
       status.replaceChildren(...classifyReading(monthly).map(({ kind, label }) => {
         const badge = document.createElement("span");
         badge.className = `monthly-status ${kind}`;
-        badge.textContent = label === "正常" ? label : `${period}均${label}`;
+        badge.textContent = label;
         return badge;
       }));
       const format = (value) => Number(value.toFixed(1)).toString();
